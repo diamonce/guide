@@ -1,0 +1,31 @@
+[mysqld]
+# Server identity
+server-id           = 1
+bind-address        = 0.0.0.0
+
+# Binary log — required for replication
+log-bin             = mysql-bin
+binlog-format       = ROW          # most reliable for replication
+binlog-row-image    = FULL
+sync-binlog         = 1            # flush binlog to disk on every commit (safest)
+expire-logs-days    = 7
+
+# GTID — global transaction IDs (modern replication, auto-positioning)
+gtid-mode           = ON
+enforce-gtid-consistency = ON
+
+# InnoDB durability
+innodb-flush-log-at-trx-commit = 1    # flush on every commit (ACID)
+innodb-flush-method = O_DIRECT
+
+# Performance
+innodb-buffer-pool-size   = 256M
+innodb-log-file-size      = 64M
+max-connections           = 200
+wait-timeout              = 300
+
+# Slow query log — for pt-query-digest later
+slow-query-log            = ON
+slow-query-log-file       = /var/log/mysql/slow.log
+long-query-time           = 1
+log-queries-not-using-indexes = ON

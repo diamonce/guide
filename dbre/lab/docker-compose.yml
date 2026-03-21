@@ -1,0 +1,174 @@
+version: "3.8"
+
+# Architecture:
+#
+#   App / scripts
+#       │
+#       ├── HAProxy :3306 ──► mysql-primary    (writes)
+#       │           :3307 ──► mysql-replica1   (reads, round-robin)
+#       │                └──► mysql-replica2
+#       │
+#       └── ProxySQL :6033 ──► auto read/write split
+#                   :6032    admin UI
+#
+#   Percona Toolkit container has all pt-* tools + mysqldump
+
+networks:
+  db-net:
+    driver: bridge
+
+volumes:
+  primary-data:
+  replica1-data:
+  replica2-data:
+  backup-data:
+
+services:
+
+  # ─────────────────────────────────────────
+  # MySQL PRIMARY (master)
+  # ─────────────────────────────────────────
+  mysql-primary:
+    image: mysql:8.0
+    container_name: mysql-primary
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpass
+      MYSQL_DATABASE: shopdb
+      MYSQL_USER: app
+      MYSQL_PASSWORD: apppass
+    ports:
+      - "3310:3306"
+    volumes:
+      - primary-data:/var/lib/mysql
+      - ./config/mysql-primary.cnf:/etc/mysql/conf.d/replication.cnf:ro
+      - ./sql/init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+      - ./sql/create-repl-user.sql:/docker-entrypoint-initdb.d/02-repl.sql:ro
+      - backup-data:/backup
+    networks:
+      db-net:
+        aliases: [primary]
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-prootpass"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # ─────────────────────────────────────────
+  # MySQL REPLICA 1
+  # ─────────────────────────────────────────
+  mysql-replica1:
+    image: mysql:8.0
+    container_name: mysql-replica1
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpass
+    ports:
+      - "3311:3306"
+    volumes:
+      - replica1-data:/var/lib/mysql
+      - ./config/mysql-replica1.cnf:/etc/mysql/conf.d/replication.cnf:ro
+      - backup-data:/backup
+    networks:
+      db-net:
+        aliases: [replica1]
+    depends_on:
+      mysql-primary:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-prootpass"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # ─────────────────────────────────────────
+  # MySQL REPLICA 2
+  # ─────────────────────────────────────────
+  mysql-replica2:
+    image: mysql:8.0
+    container_name: mysql-replica2
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpass
+    ports:
+      - "3312:3306"
+    volumes:
+      - replica2-data:/var/lib/mysql
+      - ./config/mysql-replica2.cnf:/etc/mysql/conf.d/replication.cnf:ro
+      - backup-data:/backup
+    networks:
+      db-net:
+        aliases: [replica2]
+    depends_on:
+      mysql-primary:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-prootpass"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # ─────────────────────────────────────────
+  # HAProxy — write port 3306, read port 3307
+  # ─────────────────────────────────────────
+  haproxy:
+    image: haproxy:2.9-alpine
+    container_name: haproxy
+    restart: unless-stopped
+    ports:
+      - "3306:3306"   # writes → primary
+      - "3307:3307"   # reads  → replicas
+      - "8404:8404"   # stats UI
+    volumes:
+      - ./config/haproxy.cfg:/usr/local/etc/haproxy/haproxy.cfg:ro
+    networks:
+      - db-net
+    depends_on:
+      mysql-primary:
+        condition: service_healthy
+
+  # ─────────────────────────────────────────
+  # ProxySQL — smart read/write split + pooling
+  # ─────────────────────────────────────────
+  proxysql:
+    image: proxysql/proxysql:2.5.5
+    container_name: proxysql
+    restart: unless-stopped
+    ports:
+      - "6033:6033"   # MySQL protocol (app connects here)
+      - "6032:6032"   # admin interface
+    volumes:
+      - ./config/proxysql.cnf:/etc/proxysql.cnf:ro
+    networks:
+      - db-net
+    depends_on:
+      mysql-primary:
+        condition: service_healthy
+
+  # ─────────────────────────────────────────
+  # Percona Toolkit + backup tools
+  # ─────────────────────────────────────────
+  toolkit:
+    image: percona/percona-toolkit:3.5
+    container_name: toolkit
+    entrypoint: sleep infinity
+    volumes:
+      - backup-data:/backup
+      - ./scripts:/scripts:ro
+    networks:
+      - db-net
+    depends_on:
+      mysql-primary:
+        condition: service_healthy
+
+  # ─────────────────────────────────────────
+  # Adminer — web UI (localhost:8080)
+  # ─────────────────────────────────────────
+  adminer:
+    image: adminer:4
+    container_name: adminer
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    networks:
+      - db-net

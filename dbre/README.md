@@ -17,6 +17,7 @@ DBRE applies SRE principles to databases. Databases are the most critical and le
 | [Migrations & Schema Changes](migrations.md) | Safe schema changes, zero-downtime migrations |
 | [Backup & Recovery](backup-recovery.md) | Backup strategies, point-in-time recovery, DR |
 | [Scaling Databases](scaling.md) | Read replicas, sharding, connection pooling at scale |
+| [**Lab Runbook**](lab/runbook.md) | **Docker lab — try everything hands-on (MySQL + HAProxy + ProxySQL + replicas + backups)** |
 
 ---
 
