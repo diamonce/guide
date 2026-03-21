@@ -22,6 +22,7 @@ Personal navigation hub for SRE, Platform Engineering (Terraform/IaC), and DBRE 
 - [Incident Management](sre/incident-management.md)
 - [On-Call & Runbooks](sre/on-call.md)
 - [Scalability](sre/scalability.md)
+- [Case Studies](sre/case-studies.md) — Netflix, Google, Uber, Airbnb, Discord...
 
 ## Platform Engineering
 
@@ -30,12 +31,14 @@ Personal navigation hub for SRE, Platform Engineering (Terraform/IaC), and DBRE 
 - [CI/CD Pipelines](platform/cicd.md)
 - [Cloud Infrastructure](platform/cloud-infra.md)
 - [Security & Hardening](platform/security.md)
+- [Practice & Interview Prep](platform/practice.md) — 2,600+ exercises
 
 ## DBRE
 
 - [Database Reliability Fundamentals](dbre/fundamentals.md)
-- [Performance Tuning](dbre/performance.md)
 - [SQL Best Practices](dbre/sql.md)
+- [Anti-Patterns](dbre/antipatterns.md) — design & query anti-patterns
+- [Performance Tuning](dbre/performance.md)
 - [Migrations & Schema Changes](dbre/migrations.md)
 - [Backup & Recovery](dbre/backup-recovery.md)
 - [Scaling Databases](dbre/scaling.md)

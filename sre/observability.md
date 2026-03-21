@@ -180,6 +180,36 @@ Level 5: Continuous profiling, real-user monitoring (RUM)
 | New Relic | All-in-one | SaaS |
 | OpenTelemetry | Instrumentation | Vendor-neutral standard |
 | PagerDuty | Alerting/On-call | See [On-Call](on-call.md) |
+| Atlas | Metrics (Netflix) | Open-sourced, extreme scale |
+| M3 | Metrics (Uber) | Open-sourced, high cardinality |
+
+## Useful CLI Tools for Observability `[I]`
+
+From [book-of-secret-knowledge](../resources/book-of-secret-knowledge/README.md):
+
+```bash
+# Network diagnostics
+mtr --report google.com              # traceroute + ping combined
+ss -tlnp                             # show listening sockets (faster than netstat)
+tcpdump -i eth0 -n port 5432        # capture DB traffic
+nmap -sV -p 80,443,5432 host        # port scan with service detection
+
+# System performance
+htop                                 # interactive process viewer
+iostat -x 1                          # disk I/O statistics
+vmstat 1                             # virtual memory stats
+sar -n DEV 1                         # network interface stats
+perf top                             # CPU profiling (Linux)
+
+# Log analysis
+lnav /var/log/app.log                # log file navigator with SQL queries
+jq '.level == "ERROR"' app.log       # filter structured JSON logs
+goaccess access.log --log-format=COMBINED  # web log analyzer
+
+# HTTP debugging
+curl -w "@curl-format.txt" -o /dev/null -s https://api.example.com
+httpie GET https://api.example.com   # friendlier than curl
+```
 
 ---
 

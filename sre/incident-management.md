@@ -170,6 +170,21 @@ Track these trends over time. Improving MTTD and MTTM has the highest user impac
 
 ---
 
+## How Real Companies Do It `[I]`
+
+From [howtheysre](../resources/howtheysre/README.md):
+
+- **Atlassian** — publishes real postmortems at statuspage.io, pioneered public incident communication
+- **Google** — wrote the playbook: blameless postmortems, Incident Command System borrowed from firefighting
+- **GitHub** — ChatOps incident response with Hubot, all actions logged in incident channel automatically
+- **Slack** — built tooling to auto-create incidents from alerts and auto-populate context (recent deploys, affected services)
+- **PagerDuty** — their own incident command system requires IC to not touch a keyboard during SEV1
+- **Cloudflare** — publishes detailed technical postmortems publicly (worth reading for format and depth)
+
+→ See [Case Studies](case-studies.md) for more company-specific patterns.
+
+---
+
 ## Related Topics
 
 - [On-Call & Runbooks](on-call.md)

@@ -132,6 +132,26 @@ Quick reference — see [DBRE: Scaling](../dbre/scaling.md) for depth.
 
 ---
 
+## Latency Numbers Every Engineer Should Know `[I]`
+
+```
+L1 cache reference:              0.5 ns
+L2 cache reference:              7 ns
+Main memory reference:           100 ns
+SSD random read:                 150 µs
+Network round trip (same DC):    500 µs
+Network round trip (cross-DC):   5-150 ms
+SSD sequential read (1MB):       1 ms
+HDD seek:                        10 ms
+```
+
+**Practical implications:**
+- DB call in same DC: ~1ms (network + query)
+- Avoid cross-region DB calls in hot paths
+- In-process cache (L1/L2): essentially free vs memory lookup
+
+---
+
 ## Distributed Systems Concepts `[A]`
 
 ### CAP Theorem
@@ -155,6 +175,26 @@ Even without partitions, tradeoff between latency (L) and consistency (C).
 | Eventual | All nodes converge eventually | DNS, Cassandra |
 | Causal | Causally related ops ordered | DynamoDB |
 
+### Consistent Hashing
+
+Used in distributed caches and sharded systems to minimize reshuffling when nodes are added/removed.
+
+```
+Traditional: add node → remap ~50% of keys
+Consistent hashing: add node → remap only 1/N keys (N = node count)
+```
+
+Used by: Amazon DynamoDB, Apache Cassandra, Redis Cluster, CDN routing.
+
+### ACID vs BASE
+
+| | ACID | BASE |
+|--|------|------|
+| Stands for | Atomicity, Consistency, Isolation, Durability | Basically Available, Soft state, Eventually consistent |
+| Approach | Strong guarantees, pessimistic | High availability, optimistic |
+| Examples | PostgreSQL, MySQL | Cassandra, DynamoDB, CouchDB |
+| Use for | Financial data, orders | User sessions, analytics, recommendations |
+
 ---
 
 ## System Design Checklist `[A]`
@@ -169,6 +209,23 @@ When designing for scale, ask:
 - [ ] What are the DB bottlenecks? (Connections, locks, hot rows)
 - [ ] Are there single points of failure?
 - [ ] How does the system behave at 10x current load?
+
+---
+
+## Real-World Scalability Patterns `[A]`
+
+From [awesome-scalability](../resources/awesome-scalability/README.md) and [howtheysre](../resources/howtheysre/README.md):
+
+| Company | Scale Problem | Solution |
+|---------|--------------|---------|
+| Netflix | Global video streaming | Regionalized architecture, EVCache (Memcached at scale), Hystrix circuit breaker |
+| WhatsApp | 2B users, messaging | Erlang, 2M connections/server, minimal moving parts |
+| Discord | 2.5M concurrent voice users | Go → Rust for hot path, sharded guild model |
+| Instagram | 1B users on PostgreSQL | Sharding by user_id, Django + PostgreSQL (no NoSQL) |
+| Twitter | 150M users, timeline fanout | Redis timelines, hybrid push/pull model |
+| Cloudflare | 50M+ req/s | Anycast routing, edge caching, eBPF for DDoS mitigation |
+
+**Key lesson:** Most companies solved scale with boring technology + smart architecture, not exotic databases.
 
 ---
 

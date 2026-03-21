@@ -15,6 +15,7 @@ Platform Engineering builds the internal developer platform (IDP) — the founda
 | [CI/CD Pipelines](cicd.md) | Deployment automation, testing, progressive delivery |
 | [Cloud Infrastructure](cloud-infra.md) | AWS/GCP/Azure patterns, networking, cost |
 | [Security & Hardening](security.md) | Secrets, RBAC, compliance, zero trust |
+| [Practice & Interview Prep](practice.md) | 2,600+ exercises across the full stack |
 
 ---
 

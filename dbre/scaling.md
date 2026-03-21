@@ -256,6 +256,31 @@ Problem: DB is slow/overloaded
 
 ---
 
+## Real-World Database Scaling `[A]`
+
+From [awesome-scalability](../resources/awesome-scalability/README.md) and [howtheysre](../resources/howtheysre/README.md):
+
+| Company | Scale | Approach |
+|---------|-------|---------|
+| Instagram | 1B+ users | PostgreSQL sharded by user_id, no NoSQL, Django ORM |
+| GitHub | Billions of git objects | MySQL with Vitess-style sharding, extensive caching |
+| Shopify | Black Friday peaks | MySQL + PlanetScale (Vitess), aggressive connection pooling |
+| Notion | Explosive growth | PostgreSQL, vertical scaling + read replicas first |
+| Discord | Message history | Cassandra for messages (append-only workload, no updates) |
+| Stripe | Financial transactions | PostgreSQL, strong ACID, sharding by merchant |
+
+**What Instagram teaches us:**
+- Stayed on PostgreSQL to 1B users
+- Sharding was the hard part, not the choice of database
+- Having to add NoSQL would have added complexity without clarity
+
+**What Discord teaches us:**
+- Choose data model based on access patterns, not hype
+- Cassandra is excellent for append-only, time-series, high-write workloads
+- Don't use Cassandra for relational data with complex queries
+
+---
+
 ## Related Topics
 
 - [Performance Tuning](performance.md) — optimize before scaling

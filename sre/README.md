@@ -16,6 +16,7 @@ Site Reliability Engineering applies software engineering principles to infrastr
 | [Incident Management](incident-management.md) | Detection, response, postmortems |
 | [On-Call & Runbooks](on-call.md) | Rotations, alerting, runbook design |
 | [Scalability](scalability.md) | Capacity planning, load testing, patterns |
+| [Case Studies](case-studies.md) | How Netflix, Google, Uber, Airbnb do SRE |
 
 ---
 

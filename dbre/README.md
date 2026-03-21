@@ -12,6 +12,7 @@ DBRE applies SRE principles to databases. Databases are the most critical and le
 |-------|------------------|
 | [Fundamentals](fundamentals.md) | DB reliability concepts, connection pooling, monitoring |
 | [SQL Best Practices](sql.md) | Query writing, anti-patterns, optimization |
+| [Anti-Patterns](antipatterns.md) | Design and query anti-patterns (sqlcheck reference) |
 | [Performance Tuning](performance.md) | Query optimization, indexes, execution plans |
 | [Migrations & Schema Changes](migrations.md) | Safe schema changes, zero-downtime migrations |
 | [Backup & Recovery](backup-recovery.md) | Backup strategies, point-in-time recovery, DR |

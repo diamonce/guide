@@ -283,6 +283,37 @@ Use [PGTune](https://pgtune.leopard.in.ua/) for a starting configuration based o
 
 ---
 
+## Percona Toolkit for Performance `[I]`
+
+From [percona-toolkit](../resources/percona-toolkit/README.md) — production-grade MySQL/PostgreSQL tools:
+
+```bash
+# Identify top queries by total time, calls, avg time
+pt-query-digest /var/log/mysql/slow.log
+
+# Find redundant indexes wasting write performance
+pt-duplicate-key-checker --host=db.example.com --user=dba
+
+# Check index usage (which indexes are actually being used)
+pt-index-usage --host=db.example.com /var/log/mysql/slow.log
+
+# Summarize table sizes, row counts, engine stats
+pt-table-usage --host=db.example.com
+
+# Collect system performance metrics during an issue
+pt-stalk --function status --variable Threads_running --threshold 20
+```
+
+**pt-query-digest output explained:**
+```
+# Query 1: 45% of total time, called 10,234 times, avg 0.8s
+# Worst: 5.2s | p99: 2.1s | p95: 1.4s
+SELECT o.*, c.name FROM orders o JOIN customers c ON...
+```
+Focus on queries with high **total time** (calls × avg), not just slowest individual queries.
+
+---
+
 ## Related Topics
 
 - [SQL Best Practices](sql.md) — anti-patterns
