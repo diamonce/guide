@@ -324,4 +324,4 @@ sqlcheck -f queries.sql -v
 - [Performance Tuning](performance.md) — indexing in depth
 - [Migrations & Schema Changes](migrations.md) — fixing anti-patterns safely
 - [sqlcheck submodule](../resources/sqlcheck/README.md)
-- [sql-guide submodule](../resources/sql-guide/README.md)
+- [sql-guide submodule](../resources/sql-guide/SQL_interview_questions.txt)

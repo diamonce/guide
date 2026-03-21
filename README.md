@@ -58,7 +58,7 @@ Personal navigation hub for SRE, Platform Engineering (Terraform/IaC), and DBRE 
 | [awesome-scalability](resources/awesome-scalability/README.md) | Scalability | System design & scalability patterns |
 | [data-engineer-handbook](resources/data-engineer-handbook/README.md) | DBRE/Data | Data engineering roadmap & resources |
 | [percona-toolkit](resources/percona-toolkit/README.md) | DBRE | MySQL/PostgreSQL DBA toolkit |
-| [sql-guide](resources/sql-guide/README.md) | DBRE | SQL learning guide |
+| [sql-guide](resources/sql-guide/SQL_interview_questions.txt) | DBRE | SQL interview Q&A |
 | [sqlcheck](resources/sqlcheck/README.md) | DBRE | Anti-pattern detection in SQL |
 
 ---

@@ -278,4 +278,4 @@ LIMIT 20;
 - [Migrations & Schema Changes](migrations.md) — safe ALTER TABLE
 - [Fundamentals: Locks](fundamentals.md#locks--deadlocks)
 - [sqlcheck](../resources/sqlcheck/README.md) — automated anti-pattern detection
-- [sql-guide](../resources/sql-guide/README.md) — SQL learning resource
+- [sql-guide](../resources/sql-guide/SQL_interview_questions.txt) — SQL interview Q&A
