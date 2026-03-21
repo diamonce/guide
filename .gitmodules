@@ -1,0 +1,33 @@
+[submodule "resources/devops-collection"]
+	path = resources/devops-collection
+	url = https://github.com/exajobs/devops-collection
+[submodule "resources/sql-guide"]
+	path = resources/sql-guide
+	url = https://github.com/dhaval1406/SQL
+[submodule "resources/howtheysre"]
+	path = resources/howtheysre
+	url = https://github.com/upgundecha/howtheysre
+[submodule "resources/awesome-sre"]
+	path = resources/awesome-sre
+	url = https://github.com/dastergon/awesome-sre
+[submodule "resources/sqlcheck"]
+	path = resources/sqlcheck
+	url = https://github.com/jarulraj/sqlcheck
+[submodule "resources/sre-collection"]
+	path = resources/sre-collection
+	url = https://github.com/exajobs/sre-collection
+[submodule "resources/devops-exercises"]
+	path = resources/devops-exercises
+	url = https://github.com/bregman-arie/devops-exercises
+[submodule "resources/book-of-secret-knowledge"]
+	path = resources/book-of-secret-knowledge
+	url = https://github.com/trimstray/the-book-of-secret-knowledge
+[submodule "resources/awesome-scalability"]
+	path = resources/awesome-scalability
+	url = https://github.com/binhnguyennus/awesome-scalability
+[submodule "resources/data-engineer-handbook"]
+	path = resources/data-engineer-handbook
+	url = https://github.com/DataExpert-io/data-engineer-handbook
+[submodule "resources/percona-toolkit"]
+	path = resources/percona-toolkit
+	url = https://github.com/percona/percona-toolkit
