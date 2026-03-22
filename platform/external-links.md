@@ -9,6 +9,7 @@
 | Resource | What it is |
 |----------|-----------|
 | [GitHub Well-Architected: Governance Policies Best Practices](https://wellarchitected.github.com/library/governance/recommendations/governance-policies-best-practices/) | GitHub's opinionated recommendations on governance policies — branch protection, required reviews, rulesets, org-level controls. Practical, not theoretical. |
+| [github-well-architected (source)](../resources/github-well-architected/README.md) | Full Well-Architected library source — reliability, security, operations, governance content. |
 
 ### Key Takeaways from GitHub Well-Architected Governance
 
