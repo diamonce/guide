@@ -1,6 +1,6 @@
 # Engineering Skills Guide
 
-Personal navigation hub for SRE, Platform Engineering (Terraform/IaC), and DBRE skills.
+Personal navigation hub for SRE, Platform Engineering (Terraform/IaC), DBRE, Messaging, and Architecture skills.
 
 ---
 
@@ -12,6 +12,7 @@ Personal navigation hub for SRE, Platform Engineering (Terraform/IaC), and DBRE 
 | **Platform Engineering** | Terraform, Kubernetes, CI/CD, cloud infra | [platform/README.md](platform/README.md) |
 | **DBRE** | Database reliability, performance, scaling | [dbre/README.md](dbre/README.md) |
 | **Messaging** | Kafka, RabbitMQ, SQS/SNS, queues, event streaming | [messaging/README.md](messaging/README.md) |
+| **Architecture** | Well-Architected, landing zones, blast radius, least privilege, scalability | [architecture/README.md](architecture/README.md) |
 
 ---
 
@@ -33,6 +34,14 @@ Personal navigation hub for SRE, Platform Engineering (Terraform/IaC), and DBRE 
 - [Cloud Infrastructure](platform/cloud-infra.md)
 - [Security & Hardening](platform/security.md)
 - [Practice & Interview Prep](platform/practice.md) — 2,600+ exercises
+
+## Architecture
+
+- [Overview & Core Principles](architecture/README.md)
+- [Well-Architected](architecture/well-architected.md) — AWS / GCP / Azure 6 pillars, review checklists
+- [Landing Zones](architecture/landing-zones.md) — multi-account foundations, SCPs, account vending, hub-and-spoke networking
+- [Best Practices](architecture/best-practices.md) — blast radius, least privilege, scalability, circuit breakers, cell architecture
+- [External Links](architecture/external-links.md) — official frameworks, system design books, reference architectures
 
 ## Messaging
 
@@ -78,6 +87,8 @@ Personal navigation hub for SRE, Platform Engineering (Terraform/IaC), and DBRE 
 | [awesome-redis](resources/awesome-redis/README.md) | DBRE | Redis resources, patterns, tooling |
 | [awesome-nosql-guides](resources/awesome-nosql-guides/README.md) | DBRE | NoSQL patterns, guides, comparisons |
 | [awesome-kafka](resources/awesome-kafka/README.md) | Messaging | Kafka tools, clients, libraries, resources |
+| [system-design-primer](resources/system-design-primer/README.md) | Architecture | Comprehensive system design reference — the most complete guide available |
+| [awesome-system-design](resources/awesome-system-design/README.md) | Architecture | Curated system design resources, case studies, papers |
 | [sqlstyle-guide](resources/sqlstyle-guide/README.md) | DBRE | SQL style guide for consistent formatting |
 
 ---
