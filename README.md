@@ -60,6 +60,7 @@ Personal navigation hub for SRE, Platform Engineering (Terraform/IaC), and DBRE 
 | [percona-toolkit](resources/percona-toolkit/README.md) | DBRE | MySQL/PostgreSQL DBA toolkit |
 | [sql-guide](resources/sql-guide/SQL_interview_questions.txt) | DBRE | SQL interview Q&A |
 | [sqlcheck](resources/sqlcheck/README.md) | DBRE | Anti-pattern detection in SQL |
+| [sql-tips-and-tricks](resources/sql-tips-and-tricks/README.md) | DBRE | Practical SQL tips and tricks |
 
 ---
 

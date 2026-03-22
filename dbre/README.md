@@ -36,6 +36,7 @@ DBRE applies SRE principles to databases. Databases are the most critical and le
 - [percona-toolkit](../resources/percona-toolkit/README.md) — Battle-tested MySQL/PostgreSQL tools
 - [sql-guide](../resources/sql-guide/SQL_interview_questions.txt) — SQL interview Q&A
 - [sqlcheck](../resources/sqlcheck/README.md) — SQL anti-pattern detection
+- [sql-tips-and-tricks](../resources/sql-tips-and-tricks/README.md) — Practical SQL tips and tricks
 - [data-engineer-handbook](../resources/data-engineer-handbook/README.md) — Data engineering context
 - [awesome-scalability](../resources/awesome-scalability/README.md) — DB scaling patterns
 
