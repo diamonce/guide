@@ -1,0 +1,156 @@
+site_name: Engineering Skills Guide
+site_description: Personal navigation hub for SRE, Platform Engineering, DBRE, Messaging, and Architecture
+site_url: https://diamonce.github.io/guide/
+repo_url: https://github.com/diamonce/guide
+repo_name: diamonce/guide
+edit_uri: edit/main/
+
+docs_dir: docs
+site_dir: site
+
+theme:
+  name: material
+  palette:
+    - scheme: default
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - scheme: slate
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  features:
+    - navigation.tabs
+    - navigation.tabs.sticky
+    - navigation.sections
+    - navigation.expand
+    - navigation.top
+    - navigation.footer
+    - search.suggest
+    - search.highlight
+    - search.share
+    - content.code.copy
+    - content.code.annotate
+    - content.tooltips
+  icon:
+    repo: fontawesome/brands/github
+
+plugins:
+  - search:
+      lang: en
+
+markdown_extensions:
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.superfences
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.details
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+  - admonition
+  - tables
+  - attr_list
+  - def_list
+  - footnotes
+  - toc:
+      permalink: true
+      toc_depth: 3
+
+validation:
+  nav:
+    not_found: warn
+  links:
+    not_found: warn
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/diamonce/guide
+
+nav:
+  - Home: index.md
+
+  - SRE:
+    - Overview: sre/README.md
+    - Fundamentals & Concepts: sre/fundamentals.md
+    - SLOs / SLIs / SLAs: sre/slo-sla-sli.md
+    - Observability: sre/observability.md
+    - Incident Management: sre/incident-management.md
+    - On-Call & Runbooks: sre/on-call.md
+    - Scalability: sre/scalability.md
+    - Case Studies: sre/case-studies.md
+
+  - Platform Engineering:
+    - Overview: platform/README.md
+    - Terraform & IaC: platform/terraform.md
+    - Kubernetes: platform/kubernetes.md
+    - CI/CD Pipelines: platform/cicd.md
+    - Cloud Infrastructure: platform/cloud-infra.md
+    - Security & Hardening: platform/security.md
+    - Practice & Interview Prep: platform/practice.md
+    - External Links: platform/external-links.md
+
+  - DBRE:
+    - Overview: dbre/README.md
+    - Database Landscape: dbre/databases.md
+    - Fundamentals: dbre/fundamentals.md
+    - SQL Best Practices: dbre/sql.md
+    - Anti-Patterns: dbre/antipatterns.md
+    - Best Practices: dbre/best-practices.md
+    - Performance Tuning: dbre/performance.md
+    - Migrations & Schema Changes: dbre/migrations.md
+    - Backup & Recovery: dbre/backup-recovery.md
+    - Scaling Databases: dbre/scaling.md
+    - Lab Runbook: dbre/lab/runbook.md
+    - External Links: dbre/external-links.md
+
+  - Messaging:
+    - Overview: messaging/README.md
+    - Kafka Deep Dive: messaging/kafka.md
+    - Best Practices: messaging/best-practices.md
+    - External Links: messaging/external-links.md
+
+  - Architecture:
+    - Overview: architecture/README.md
+    - Well-Architected: architecture/well-architected.md
+    - Landing Zones: architecture/landing-zones.md
+    - Best Practices: architecture/best-practices.md
+    - External Links: architecture/external-links.md
+
+  - Resources:
+    - SRE:
+      - awesome-sre: resources/awesome-sre/README.md
+      - howtheysre: resources/howtheysre/README.md
+      - sre-collection: resources/sre-collection/README.md
+    - Platform:
+      - devops-exercises: resources/devops-exercises/README.md
+      - devops-collection: resources/devops-collection/README.md
+      - book-of-secret-knowledge: resources/book-of-secret-knowledge/README.md
+      - github-well-architected: resources/github-well-architected/README.md
+    - DBRE:
+      - percona-toolkit: resources/percona-toolkit/README.md
+      - sqlcheck: resources/sqlcheck/README.md
+      - sql-tips-and-tricks: resources/sql-tips-and-tricks/README.md
+      - awesome-mysql: resources/awesome-mysql/README.md
+      - sqlstyle-guide: resources/sqlstyle-guide/README.md
+      - awesome-postgres: resources/awesome-postgres/README.md
+      - awesome-mongodb: resources/awesome-mongodb/README.md
+      - awesome-redis: resources/awesome-redis/README.md
+      - awesome-nosql-guides: resources/awesome-nosql-guides/README.md
+    - Messaging:
+      - awesome-kafka: resources/awesome-kafka/README.md
+    - Architecture & Scale:
+      - awesome-scalability: resources/awesome-scalability/README.md
+      - system-design-primer: resources/system-design-primer/README.md
+      - awesome-system-design: resources/awesome-system-design/README.md
+      - data-engineer-handbook: resources/data-engineer-handbook/README.md

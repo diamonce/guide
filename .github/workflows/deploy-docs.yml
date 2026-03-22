@@ -1,0 +1,72 @@
+name: Deploy Docs
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # full history for git-revision-date plugin
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install mkdocs-material
+
+      - name: Create docs directory
+        run: |
+          mkdir -p docs
+
+          # Root index
+          ln -s ../README.md docs/index.md
+
+          # Main content sections (full symlink — these are our own files)
+          for dir in sre platform dbre messaging architecture; do
+            ln -s ../$dir docs/$dir
+          done
+
+          # Resources: copy only top-level README.md per resource
+          # (avoids MkDocs scanning broken internal links inside vendored repos)
+          mkdir -p docs/resources
+          for dir in resources/*/; do
+            name=$(basename "$dir")
+            if [ -f "$dir/README.md" ]; then
+              mkdir -p "docs/resources/$name"
+              cp "$dir/README.md" "docs/resources/$name/README.md"
+            fi
+          done
+
+      - name: Build site
+        run: mkdocs build
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site/
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
