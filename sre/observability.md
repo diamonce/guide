@@ -94,6 +94,7 @@ Traces show how a single request flows through multiple services.
 - **Trace** — the full journey of a request
 - **Span** — a single operation within a trace (has start time, duration, metadata)
 - **Parent/child spans** — represent service-to-service calls
+- **TraceID** — 128-bit ID propagated across all service boundaries (W3C `traceparent` header)
 
 **OpenTelemetry (OTEL)** is the standard. Instrument once, export to any backend.
 
@@ -105,6 +106,8 @@ Trace: user-checkout (120ms)
 └── payment-service (80ms)  ← bottleneck
     └── stripe-api (78ms)
 ```
+
+→ See [OpenTelemetry deep dive](opentelemetry.md) — architecture, sampling, instrumentation code, Collector config, backends.
 
 ---
 

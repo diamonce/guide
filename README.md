@@ -23,6 +23,7 @@
 - [Fundamentals & Concepts](sre/fundamentals.md)
 - [SLOs / SLIs / SLAs](sre/slo-sla-sli.md)
 - [Observability](sre/observability.md)
+- [OpenTelemetry & Tracing](sre/opentelemetry.md)
 - [Incident Management](sre/incident-management.md)
 - [On-Call & Runbooks](sre/on-call.md)
 - [Scalability](sre/scalability.md)
