@@ -93,6 +93,148 @@ On failure at any step → compensating events (PaymentRefunded, InventoryReleas
 
 ---
 
+## When to Use What
+
+| Scenario | Recommended | Why |
+|----------|-------------|-----|
+| High-throughput event streaming (millions/s) | **Kafka** | Durable log, replay, consumer groups scale independently |
+| Audit log / event sourcing | **Kafka** (compacted topic) | Immutable, replayable, retains history |
+| Change Data Capture (CDC) from DB | **Kafka** + Debezium | Reads DB binlog, streams changes as events |
+| Task queue — background jobs | **RabbitMQ** or **SQS** | Work distribution, one consumer per message |
+| Complex routing (topic/header/fanout) | **RabbitMQ** | Exchange types give fine-grained routing control |
+| Serverless / AWS-native workloads | **SQS + SNS** | Zero ops, triggers Lambda, pay-per-use |
+| Fan-out to multiple AWS services | **SNS → SQS** | One publish, N independent queues with own retry/DLQ |
+| Ordered processing per entity | **Kafka** (keyed) or **SQS FIFO** | Kafka: per partition; SQS FIFO: per MessageGroupId |
+| Low-latency microservice messaging (< 1ms) | **NATS** | In-memory, no persistence overhead by default |
+| Multi-region active-active | **Kafka** (MirrorMaker 2) or **Pulsar** | Pulsar has native geo-replication; Kafka needs MirrorMaker |
+| GCP-native event pipeline | **Google Pub/Sub** | Serverless, integrates with Dataflow, BigQuery |
+| Azure-native messaging | **Azure Service Bus** | Sessions, DLQ, transactions in the Azure ecosystem |
+| Real-time stream processing + SQL | **Kafka + ksqlDB** or **Flink** | Continuous queries over live event streams |
+| Lightweight in-app event bus | **Redis Streams** | Already have Redis? Streams add durable pub/sub |
+| Request-reply (synchronous) | **gRPC / HTTP** | Don't use a broker for sync — wrong tool |
+| Small team, no ops capacity | **SQS / SNS** or **managed Kafka (Confluent/MSK)** | Remove operational complexity entirely |
+
+---
+
+## Fan-out Patterns
+
+Fan-out = one event published once, delivered to multiple independent consumers. Critical for decoupling services.
+
+### SNS → SQS (AWS canonical pattern)
+
+Each downstream service owns its SQS queue. Failures in one service don't affect others.
+
+```
+                    ┌─ SQS: email-service     (retries 3×, DLQ: email-dlq)
+                    │
+SNS: order.created ─┼─ SQS: inventory-service (retries 5×, DLQ: inventory-dlq)
+                    │
+                    ├─ SQS: analytics-service (retries 1×, no DLQ — best-effort)
+                    │
+                    └─ Lambda: fraud-check    (immediate, synchronous fan-out leg)
+```
+
+**Why SQS in front of Lambda (not SNS → Lambda directly)?**
+- SQS buffers: Lambda throttling doesn't lose messages
+- SQS retries independently per queue
+- SQS DLQ catches Lambda failures; SNS → Lambda has no DLQ
+
+```python
+# Subscribe SQS queues to SNS topic (Terraform)
+resource "aws_sns_topic_subscription" "email" {
+  topic_arn = aws_sns_topic.order_created.arn
+  protocol  = "sqs"
+  endpoint  = aws_sqs_queue.email_service.arn
+}
+
+# SNS filter policy — email service only gets paid orders
+resource "aws_sns_topic_subscription" "email_filtered" {
+  filter_policy = jsonencode({
+    status = ["paid", "refunded"]
+  })
+}
+```
+
+### Kafka Consumer Groups (fan-out with replay)
+
+Each consumer group reads the full topic independently. Unlike SNS/SQS, messages persist — new consumer groups can replay from the beginning.
+
+```
+Kafka Topic: orders
+  │
+  ├─ Consumer Group: payments-service     (at offset 10,240)
+  ├─ Consumer Group: analytics-service    (at offset 10,195 — 45 behind)
+  ├─ Consumer Group: notification-service (at offset 10,240)
+  └─ Consumer Group: audit-service        (at offset 0 — replaying history)
+```
+
+One team adding a new consumer group never touches other groups. No SNS subscription management needed.
+
+### RabbitMQ Fanout Exchange
+
+Delivers to all bound queues unconditionally — no routing key used.
+
+```
+                    ┌─ Queue: email-worker
+                    │
+Fanout Exchange ────┼─ Queue: sms-worker
+                    │
+                    └─ Queue: push-notification-worker
+```
+
+```python
+# Declare fanout exchange
+channel.exchange_declare('order.notifications', 'fanout', durable=True)
+
+# Each service binds its own queue — routing key ignored
+channel.queue_bind('email-worker',  'order.notifications', routing_key='')
+channel.queue_bind('sms-worker',    'order.notifications', routing_key='')
+channel.queue_bind('push-worker',   'order.notifications', routing_key='')
+
+# Publish once → all three queues receive a copy
+channel.basic_publish(exchange='order.notifications', routing_key='', body=msg)
+```
+
+### RabbitMQ Topic Exchange (selective fan-out)
+
+Routing key pattern matching. More control than fanout — queues receive only matching events.
+
+```
+Topic Exchange: events
+  │
+  ├─ Queue: payments  (binding: orders.#)        ← gets orders.created, orders.paid, orders.refunded
+  ├─ Queue: shipping  (binding: orders.paid)     ← gets only orders.paid
+  └─ Queue: all-events (binding: #)              ← gets everything
+```
+
+```python
+channel.exchange_declare('events', 'topic', durable=True)
+channel.queue_bind('payments', 'events', routing_key='orders.#')
+channel.queue_bind('shipping', 'events', routing_key='orders.paid')
+
+# Only shipping and payments receive this:
+channel.basic_publish(exchange='events', routing_key='orders.paid', body=msg)
+```
+
+### Fan-out Anti-patterns
+
+```
+❌ Shared queue for multiple consumer types
+   → one consumer starves the others; tight coupling
+
+❌ SNS → Lambda directly for high-volume fan-out
+   → no buffering, Lambda throttling = dropped messages
+
+❌ Broadcasting large payloads to all consumers
+   → use claim check: put payload in S3, fan-out the S3 key
+
+❌ Fan-out with a synchronous call chain
+   → if one downstream is slow, the whole fan-out blocks
+   → async fan-out only; fire and forget per leg
+```
+
+---
+
 ## Cloud-Managed vs. Self-Managed
 
 | | Self-Managed (Kafka / RabbitMQ) | Cloud-Managed (SQS / SNS / Pub/Sub) |
