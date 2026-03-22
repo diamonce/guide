@@ -1,0 +1,1 @@
+../src/go/pt-secure-collect/README.rst

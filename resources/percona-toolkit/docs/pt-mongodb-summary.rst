@@ -1,0 +1,1 @@
+../src/go/pt-mongodb-summary/README.rst
