@@ -28,6 +28,8 @@ The strongest blast radius boundary in cloud is the account boundary. A security
 
 Divide workload into identical, independent cells. Each cell serves a subset of users. A cell failure impacts only that cell's users.
 
+> Reference: [AWS Well-Architected — Use cell-based architecture](https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_fault_isolation_use_cell_based_architecture.html) · [AWS Builders' Library — Reliability and constant work](https://aws.amazon.com/builders-library/reliability-and-constant-work/)
+
 ```
                  ┌──── Load Balancer ────┐
                  │    (routes by hash)   │
@@ -44,7 +46,7 @@ Divide workload into identical, independent cells. Each cell serves a subset of 
     └────────────┘   └────────────┘   └────────────┘
 ```
 
-Used by Amazon, Netflix, Stripe. A bad deployment to Cell A — caught by canary metrics — doesn't roll to B or C.
+Used by Amazon (documented in AWS Builders' Library) and Netflix. A bad deployment to Cell A — caught by canary metrics — doesn't roll to B or C.
 
 **Routing strategy:**
 ```python
@@ -56,6 +58,8 @@ def get_cell(user_id: str, total_cells: int = 3) -> int:
 ```
 
 ### Bulkheads
+
+> Reference: [Azure Architecture Center — Bulkhead Pattern](https://learn.microsoft.com/en-us/azure/architecture/patterns/bulkhead) · [Release It! — Michael T. Nygard](https://pragprog.com/titles/mnee2/release-it-second-edition/)
 
 Isolate resource pools per consumer type. A slow consumer exhausting the thread pool / connection pool doesn't starve other consumers.
 
@@ -79,6 +83,8 @@ report_executor = ThreadPoolExecutor(max_workers=3)
 ```
 
 ### Progressive Delivery (Canary / Ring Deployments)
+
+> Reference: [Martin Fowler — Canary Release](https://martinfowler.com/bliki/CanaryRelease.html) · [AWS — Automating safe, hands-off deployments](https://aws.amazon.com/builders-library/automating-safe-hands-off-deployments/)
 
 Release to a small percentage of users first. Limit the blast radius of a bad deployment.
 
@@ -110,6 +116,8 @@ spec:
 
 ### Feature Flags
 
+> Reference: [Martin Fowler — Feature Toggles](https://martinfowler.com/articles/feature-toggles.html)
+
 Decouple deployment from release. Ship code to 100% of servers, enable for 0% of users. Roll out gradually, roll back without a deployment.
 
 ```python
@@ -125,6 +133,8 @@ else:
 - Without flags: rollback deployment → minutes of downtime risk
 
 ### Circuit Breakers
+
+> Reference: [Martin Fowler — Circuit Breaker](https://martinfowler.com/bliki/CircuitBreaker.html) · [Azure Architecture Center — Circuit Breaker Pattern](https://learn.microsoft.com/en-us/azure/architecture/patterns/circuit-breaker)
 
 Stop calling a failing dependency. Give it time to recover instead of hammering it with failing requests.
 

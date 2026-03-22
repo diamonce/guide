@@ -222,8 +222,10 @@ aws wellarchitected list-answers \
 
 Run a review:
 1. [console.aws.amazon.com/wellarchitected](https://console.aws.amazon.com/wellarchitected/)
-2. Create workload → select lenses → answer ~50 questions per pillar
+2. Create workload → select lenses → answer ~58 questions across all 6 pillars
 3. Review generates a report with High/Medium risk findings and improvement plan
+
+→ Full question list: [AWS WAF Appendix — Questions and Best Practices](https://docs.aws.amazon.com/wellarchitected/latest/framework/appendix.html)
 
 ---
 

@@ -49,10 +49,11 @@
 
 | Resource | What it is |
 |----------|-----------|
-| [AWS re:Invent — Cell-Based Architecture](https://www.youtube.com/watch?v=swQbA4zub20) | Amazon's presentation on cell-based architecture patterns |
+| [AWS WAF — Cell-Based Architecture](https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_fault_isolation_use_cell_based_architecture.html) | AWS Well-Architected guidance on cell-based fault isolation |
+| [AWS Builders' Library — Reliability and Constant Work](https://aws.amazon.com/builders-library/reliability-and-constant-work/) | How Amazon uses constant-work patterns and cell isolation in production |
 | [Netflix Tech Blog — Chaos Engineering](https://netflixtechblog.com/tagged/chaos-engineering) | Netflix's approach to failure injection and resilience |
 | [Chaos Engineering (book)](https://www.oreilly.com/library/view/chaos-engineering/9781492043850/) | O'Reilly book — principled approach to system resilience |
-| [Principia Maleficarium](https://github.com/dastergon/awesome-chaos-engineering) | awesome-chaos-engineering — tools, papers, presentations |
+| [awesome-chaos-engineering](https://github.com/dastergon/awesome-chaos-engineering) | Curated chaos engineering tools, papers, and presentations |
 | [resilience4j](https://resilience4j.readme.io/) | Circuit breaker, retry, rate limiter library for JVM |
 | [Hystrix (Netflix)](https://github.com/Netflix/Hystrix) | Circuit breaker library (now in maintenance mode — use resilience4j) |
 
