@@ -1,0 +1,13 @@
+nbproject
+.ruby-version
+*.orig
+*.swp
+*~
+.DS_Store
+._*
+Thumbs.db
+Gemfile.lock
+
+_site
+_gh_pages
+.jekyll-metadata

@@ -62,6 +62,7 @@ Personal navigation hub for SRE, Platform Engineering (Terraform/IaC), and DBRE 
 | [sqlcheck](resources/sqlcheck/README.md) | DBRE | Anti-pattern detection in SQL |
 | [sql-tips-and-tricks](resources/sql-tips-and-tricks/README.md) | DBRE | Practical SQL tips and tricks |
 | [awesome-mysql](resources/awesome-mysql/README.md) | DBRE | MySQL queries, commands and snippets |
+| [sqlstyle-guide](resources/sqlstyle-guide/README.md) | DBRE | SQL style guide for consistent formatting |
 
 ---
 
