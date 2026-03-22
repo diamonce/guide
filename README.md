@@ -11,6 +11,7 @@ Personal navigation hub for SRE, Platform Engineering (Terraform/IaC), and DBRE 
 | **SRE** | Reliability, observability, incident response | [sre/README.md](sre/README.md) |
 | **Platform Engineering** | Terraform, Kubernetes, CI/CD, cloud infra | [platform/README.md](platform/README.md) |
 | **DBRE** | Database reliability, performance, scaling | [dbre/README.md](dbre/README.md) |
+| **Messaging** | Kafka, RabbitMQ, SQS/SNS, queues, event streaming | [messaging/README.md](messaging/README.md) |
 
 ---
 
@@ -32,6 +33,13 @@ Personal navigation hub for SRE, Platform Engineering (Terraform/IaC), and DBRE 
 - [Cloud Infrastructure](platform/cloud-infra.md)
 - [Security & Hardening](platform/security.md)
 - [Practice & Interview Prep](platform/practice.md) — 2,600+ exercises
+
+## Messaging
+
+- [Overview & System Comparison](messaging/README.md) — Kafka vs RabbitMQ vs SQS vs Pulsar vs NATS
+- [Kafka Deep Dive](messaging/kafka.md) — partitions, consumer groups, exactly-once, operations
+- [Best Practices](messaging/best-practices.md) — do's/don'ts for Kafka, RabbitMQ, SQS
+- [External Links](messaging/external-links.md) — official docs, design essays, benchmarks
 
 ## DBRE
 
@@ -69,6 +77,7 @@ Personal navigation hub for SRE, Platform Engineering (Terraform/IaC), and DBRE 
 | [awesome-mongodb](resources/awesome-mongodb/README.md) | DBRE | MongoDB resources and tools |
 | [awesome-redis](resources/awesome-redis/README.md) | DBRE | Redis resources, patterns, tooling |
 | [awesome-nosql-guides](resources/awesome-nosql-guides/README.md) | DBRE | NoSQL patterns, guides, comparisons |
+| [awesome-kafka](resources/awesome-kafka/README.md) | Messaging | Kafka tools, clients, libraries, resources |
 | [sqlstyle-guide](resources/sqlstyle-guide/README.md) | DBRE | SQL style guide for consistent formatting |
 
 ---
