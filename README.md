@@ -1,6 +1,8 @@
 # Engineering Skills Guide
 
-Personal navigation hub for SRE, Platform Engineering, DBRE, Messaging, and Architecture. Browse the rendered site at [diamonce.github.io/guide](https://diamonce.github.io/guide/).
+> **Dmytro Chernenko's** personal guide to the engineering universe — a fast-navigation reference across SRE, Platform Engineering, DBRE, Messaging, and Architecture.
+>
+> ### [Browse the rendered site → diamonce.github.io/guide](https://diamonce.github.io/guide/)
 
 ---
 
@@ -69,6 +71,8 @@ Personal navigation hub for SRE, Platform Engineering, DBRE, Messaging, and Arch
 
 ## Resource Library
 
+The repos below are checked-out copies of open-source projects vendored here for offline browsing and cross-linking. **All content rights belong to the original authors.** See each repo's license for details.
+
 | Repo | Domain | Description |
 |------|--------|-------------|
 | [awesome-sre](resources/awesome-sre/README.md) | SRE | Curated SRE resources, tools, books |
@@ -81,6 +85,7 @@ Personal navigation hub for SRE, Platform Engineering, DBRE, Messaging, and Arch
 | [awesome-scalability](resources/awesome-scalability/README.md) | Architecture | System design & scalability patterns from real companies |
 | [system-design-primer](resources/system-design-primer/README.md) | Architecture | The most comprehensive system design reference on GitHub |
 | [awesome-system-design](resources/awesome-system-design/README.md) | Architecture | Curated system design resources, papers, implementations |
+| [awesome-chaos-engineering](resources/awesome-chaos-engineering/README.md) | Architecture/SRE | Chaos engineering tools, books, papers, and game days |
 | [percona-toolkit](resources/percona-toolkit/README.md) | DBRE | MySQL/PostgreSQL DBA toolkit (pt-osc, pt-query-digest, pt-table-checksum) |
 | [sqlcheck](resources/sqlcheck/README.md) | DBRE | SQL anti-pattern detection — run in CI |
 | [sql-tips-and-tricks](resources/sql-tips-and-tricks/README.md) | DBRE | Practical SQL tips and tricks |
@@ -96,11 +101,7 @@ Personal navigation hub for SRE, Platform Engineering, DBRE, Messaging, and Arch
 
 ---
 
-## Skill Progression
+## Contributing
 
-```
-Beginner  →  Intermediate  →  Advanced
-   [B]            [I]            [A]
-```
-
-Each topic page marks concepts with these levels. Start at [B], move forward as you get comfortable.
+Found something wrong, outdated, or missing? Pull requests are welcome.
+This is a living document — if a pattern clicked for you or you know a better source, open a PR.

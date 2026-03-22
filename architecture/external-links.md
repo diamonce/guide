@@ -53,7 +53,7 @@
 | [AWS Builders' Library — Reliability and Constant Work](https://aws.amazon.com/builders-library/reliability-and-constant-work/) | How Amazon uses constant-work patterns and cell isolation in production |
 | [Netflix Tech Blog — Chaos Engineering](https://netflixtechblog.com/tagged/chaos-engineering) | Netflix's approach to failure injection and resilience |
 | [Chaos Engineering (book)](https://www.oreilly.com/library/view/chaos-engineering/9781492043850/) | O'Reilly book — principled approach to system resilience |
-| [awesome-chaos-engineering](https://github.com/dastergon/awesome-chaos-engineering) | Curated chaos engineering tools, papers, and presentations |
+| [awesome-chaos-engineering](../resources/awesome-chaos-engineering/README.md) | Curated chaos engineering tools, books, papers, and game days |
 | [resilience4j](https://resilience4j.readme.io/) | Circuit breaker, retry, rate limiter library for JVM |
 | [Hystrix (Netflix)](https://github.com/Netflix/Hystrix) | Circuit breaker library (now in maintenance mode — use resilience4j) |
 
