@@ -10,6 +10,7 @@ DBRE applies SRE principles to databases. Databases are the most critical and le
 
 | Topic | What you'll learn |
 |-------|------------------|
+| [Database Landscape](databases.md) | Every major engine — relational, NoSQL, cloud-native; pros/cons, decision framework |
 | [Fundamentals](fundamentals.md) | DB reliability concepts, connection pooling, monitoring |
 | [SQL Best Practices](sql.md) | Query writing, anti-patterns, optimization |
 | [Anti-Patterns](antipatterns.md) | Design and query anti-patterns (sqlcheck reference) |
@@ -26,8 +27,8 @@ DBRE applies SRE principles to databases. Databases are the most critical and le
 ## Learning Path
 
 ```
-[B] Fundamentals → SQL Best Practices → Backup & Recovery
-[I] Performance Tuning → Migrations
+[B] Database Landscape → Fundamentals → SQL Best Practices → Backup & Recovery
+[I] Performance Tuning → Migrations → Best Practices
 [A] Scaling → Distributed databases → DB reliability engineering
 ```
 
@@ -40,6 +41,10 @@ DBRE applies SRE principles to databases. Databases are the most critical and le
 - [sqlcheck](../resources/sqlcheck/README.md) — SQL anti-pattern detection
 - [sql-tips-and-tricks](../resources/sql-tips-and-tricks/README.md) — Practical SQL tips and tricks
 - [awesome-mysql](../resources/awesome-mysql/README.md) — MySQL queries, commands and snippets
+- [awesome-postgres](../resources/awesome-postgres/README.md) — PostgreSQL resources and tools
+- [awesome-mongodb](../resources/awesome-mongodb/README.md) — MongoDB resources and tools
+- [awesome-redis](../resources/awesome-redis/README.md) — Redis resources and tools
+- [awesome-nosql-guides](../resources/awesome-nosql-guides/README.md) — NoSQL patterns and guides
 - [sqlstyle-guide](../resources/sqlstyle-guide/README.md) — SQL style guide for consistent formatting
 - [data-engineer-handbook](../resources/data-engineer-handbook/README.md) — Data engineering context
 - [awesome-scalability](../resources/awesome-scalability/README.md) — DB scaling patterns

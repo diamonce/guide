@@ -35,9 +35,11 @@ Personal navigation hub for SRE, Platform Engineering (Terraform/IaC), and DBRE 
 
 ## DBRE
 
+- [Database Landscape](dbre/databases.md) — every engine compared: PostgreSQL, MySQL, Oracle, MongoDB, Redis, Aurora, DynamoDB, Spanner, Cosmos
 - [Database Reliability Fundamentals](dbre/fundamentals.md)
 - [SQL Best Practices](dbre/sql.md)
 - [Anti-Patterns](dbre/antipatterns.md) — design & query anti-patterns
+- [Best Practices — Do's and Don'ts](dbre/best-practices.md)
 - [Performance Tuning](dbre/performance.md)
 - [Migrations & Schema Changes](dbre/migrations.md)
 - [Backup & Recovery](dbre/backup-recovery.md)
@@ -63,6 +65,10 @@ Personal navigation hub for SRE, Platform Engineering (Terraform/IaC), and DBRE 
 | [github-well-architected](resources/github-well-architected/README.md) | Platform | GitHub Well-Architected library — reliability, security, governance |
 | [sql-tips-and-tricks](resources/sql-tips-and-tricks/README.md) | DBRE | Practical SQL tips and tricks |
 | [awesome-mysql](resources/awesome-mysql/README.md) | DBRE | MySQL queries, commands and snippets |
+| [awesome-postgres](resources/awesome-postgres/README.md) | DBRE | PostgreSQL resources, tools, extensions |
+| [awesome-mongodb](resources/awesome-mongodb/README.md) | DBRE | MongoDB resources and tools |
+| [awesome-redis](resources/awesome-redis/README.md) | DBRE | Redis resources, patterns, tooling |
+| [awesome-nosql-guides](resources/awesome-nosql-guides/README.md) | DBRE | NoSQL patterns, guides, comparisons |
 | [sqlstyle-guide](resources/sqlstyle-guide/README.md) | DBRE | SQL style guide for consistent formatting |
 
 ---

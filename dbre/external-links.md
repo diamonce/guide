@@ -6,13 +6,29 @@ Curated external links — bookmarks worth keeping open.
 
 ---
 
-## PostgreSQL
+## Official Documentation
 
-| Resource | What it is |
-|----------|-----------|
-| [PostgreSQL Official Docs](https://www.postgresql.org/docs/current/) | The definitive reference. Search here first before Stack Overflow. |
-| [Don't Do This — PostgreSQL Wiki](https://wiki.postgresql.org/wiki/Don%27t_Do_This) | Official list of common PostgreSQL mistakes. Short, dense, read it once a quarter. |
-| [modern-sql.com](https://modern-sql.com/) | Deep dives into modern SQL features (window functions, CTEs, lateral joins). Explains what the standard actually says. |
+| Database | Official Docs | Notes |
+|----------|--------------|-------|
+| PostgreSQL | [postgresql.org/docs/current](https://www.postgresql.org/docs/current/) | Definitive reference — search here before Stack Overflow |
+| MySQL | [dev.mysql.com/doc](https://dev.mysql.com/doc/) | InnoDB internals, replication, optimizer trace |
+| MariaDB | [mariadb.com/kb/en](https://mariadb.com/kb/en/) | MySQL fork with additional features |
+| Oracle DB | [docs.oracle.com/en/database](https://docs.oracle.com/en/database/) | Enterprise reference; PL/SQL, RAC, Data Guard |
+| MongoDB | [mongodb.com/docs](https://www.mongodb.com/docs/) | Aggregation pipeline, schema design, indexing |
+| Redis | [redis.io/docs](https://redis.io/docs/) | Commands reference, persistence, cluster config |
+| Cassandra | [cassandra.apache.org/doc](https://cassandra.apache.org/doc/latest/) | CQL, data modeling, compaction strategies |
+| ClickHouse | [clickhouse.com/docs](https://clickhouse.com/docs/) | MergeTree engines, SQL extensions, materialized views |
+| Amazon Aurora | [aws.amazon.com/rds/aurora/faqs](https://aws.amazon.com/rds/aurora/faqs/) | Storage architecture, failover, Serverless v2 |
+| Amazon DynamoDB | [docs.aws.amazon.com/dynamodb](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/) | Key design, GSIs, Streams, Global Tables |
+| Google Cloud Spanner | [cloud.google.com/spanner/docs](https://cloud.google.com/spanner/docs) | TrueTime, interleaving, global ACID |
+| Azure Cosmos DB | [learn.microsoft.com/azure/cosmos-db](https://learn.microsoft.com/en-us/azure/cosmos-db/) | Consistency levels, partitioning, multi-API |
+| CockroachDB | [cockroachlabs.com/docs](https://www.cockroachlabs.com/docs/) | Distributed SQL, geo-partitioning, Raft |
+| PlanetScale | [planetscale.com/docs](https://planetscale.com/docs) | Schema branching, Vitess, non-blocking DDL |
+| Valkey (Redis fork) | [valkey.io](https://valkey.io/) | Open-source Redis fork maintained by AWS/Google post license change |
+
+---
+
+## PostgreSQL
 
 ---
 
@@ -94,8 +110,13 @@ From [sqlblog.org/bad-habits](https://sqlblog.org/bad-habits):
 
 ## Related Topics
 
+- [Database Landscape](databases.md) — all engines compared, cloud vs. self-managed, decision framework
 - [SQL Best Practices](sql.md)
 - [Anti-Patterns](antipatterns.md)
 - [Performance Tuning](performance.md)
 - [sqlcheck](../resources/sqlcheck/README.md) — automated anti-pattern detection
 - [sqlstyle-guide](../resources/sqlstyle-guide/README.md) — formatting conventions
+- [awesome-postgres](../resources/awesome-postgres/README.md)
+- [awesome-mongodb](../resources/awesome-mongodb/README.md)
+- [awesome-redis](../resources/awesome-redis/README.md)
+- [awesome-nosql-guides](../resources/awesome-nosql-guides/README.md)
