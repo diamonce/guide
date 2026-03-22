@@ -1,6 +1,6 @@
 # Engineering Skills Guide
 
-Personal navigation hub for SRE, Platform Engineering (Terraform/IaC), DBRE, Messaging, and Architecture skills.
+Personal navigation hub for SRE, Platform Engineering (Terraform/IaC), DBRE, Messaging, and Architecture skills. Browse the site at [diamonce.github.io/guide](https://diamonce.github.io/guide/).
 
 ---
 
