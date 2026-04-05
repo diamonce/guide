@@ -77,15 +77,24 @@ mysql_users =
 # Query rules — route SELECTs to replicas
 mysql_query_rules =
 (
+    # ProxySQL 2.5 multiplexing probe — intercept before it reaches MySQL 8.0.
+    # MySQL rejects SELECT $$ with "Unknown column '$$'" which fills the error log.
     {
         rule_id              = 1
+        active               = 1
+        match_pattern        = "^SELECT \$\$"
+        multiplex            = 1
+        apply                = 1
+    },
+    {
+        rule_id              = 2
         active               = 1
         match_pattern        = "^SELECT .* FOR UPDATE"
         destination_hostgroup = 0    # SELECT FOR UPDATE must go to primary
         apply                = 1
     },
     {
-        rule_id              = 2
+        rule_id              = 3
         active               = 1
         match_pattern        = "^SELECT"
         destination_hostgroup = 1    # all other SELECTs → replicas

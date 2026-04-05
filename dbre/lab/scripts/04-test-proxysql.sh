@@ -27,10 +27,10 @@ MYSQL_PWD="apppass" mysql -h 127.0.0.1 -P 6033 -uapp shopdb \
 
 echo ""
 echo "=== ProxySQL stats (admin interface) ==="
-MYSQL_PWD="admin" mysql -h 127.0.0.1 -P 6032 -uadmin \
+MYSQL_PWD="adminpass" mysql -h 127.0.0.1 -P 6032 -uadmin \
     -e "SELECT hostgroup, srv_host, status, ConnUsed, ConnFree, Queries FROM stats_mysql_connection_pool;"
 
 echo ""
 echo "=== Query routing breakdown ==="
-MYSQL_PWD="admin" mysql -h 127.0.0.1 -P 6032 -uadmin \
+MYSQL_PWD="adminpass" mysql -h 127.0.0.1 -P 6032 -uadmin \
     -e "SELECT rule_id, hits, destination_hostgroup, match_pattern FROM stats_mysql_query_rules;"
