@@ -77,4 +77,17 @@ docker exec -e MYSQL_PWD="$ROOT_PASS" "$PRIMARY" mysql -u root -e "
     ALTER USER 'haproxy_check'@'%' IDENTIFIED WITH mysql_native_password BY '' PASSWORD EXPIRE NEVER;
     FLUSH PRIVILEGES;
 "
+
+for REPLICA in "${REPLICAS[@]}"; do
+    echo ""
+    echo "=== Configuring $REPLICA ==="
+
+docker exec -e MYSQL_PWD="$ROOT_PASS" "$REPLICA" mysql -u root -e "
+    CREATE USER IF NOT EXISTS 'haproxy_check'@'%';
+    ALTER USER 'haproxy_check'@'%' IDENTIFIED WITH mysql_native_password BY '' PASSWORD EXPIRE NEVER;
+    FLUSH PRIVILEGES;
+"
+
+done
+
 echo "✅ haproxy_check user created with legacy auth and no expiration."
