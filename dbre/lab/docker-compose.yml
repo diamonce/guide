@@ -198,8 +198,10 @@ services:
     container_name: mysqld-exporter-primary
     restart: unless-stopped
     environment:
-      DATA_SOURCE_NAME: "monitoring:monitorpass@(mysql-primary:3306)/"
+      MYSQLD_EXPORTER_PASSWORD: "monitorpass"
     command:
+      - --mysqld.address=mysql-primary:3306
+      - --mysqld.username=monitoring
       - --collect.global_status
       - --collect.global_variables
       - --collect.info_schema.processlist
@@ -220,8 +222,10 @@ services:
     container_name: mysqld-exporter-replica1
     restart: unless-stopped
     environment:
-      DATA_SOURCE_NAME: "monitoring:monitorpass@(mysql-replica1:3306)/"
+      MYSQLD_EXPORTER_PASSWORD: "monitorpass"
     command:
+      - --mysqld.address=mysql-replica1:3306
+      - --mysqld.username=monitoring
       - --collect.global_status
       - --collect.global_variables
       - --collect.slave_status            # replica lag, IO/SQL thread state
@@ -240,8 +244,10 @@ services:
     container_name: mysqld-exporter-replica2
     restart: unless-stopped
     environment:
-      DATA_SOURCE_NAME: "monitoring:monitorpass@(mysql-replica2:3306)/"
+      MYSQLD_EXPORTER_PASSWORD: "monitorpass"
     command:
+      - --mysqld.address=mysql-replica2:3306
+      - --mysqld.username=monitoring
       - --collect.global_status
       - --collect.global_variables
       - --collect.slave_status
