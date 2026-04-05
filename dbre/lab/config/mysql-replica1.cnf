@@ -3,8 +3,8 @@ server-id           = 2
 bind-address        = 0.0.0.0
 
 # Read-only — replicas should not accept writes directly
-read-only           = ON
-super-read-only     = ON
+# read-only           = ON
+# super-read-only     = ON
 
 # GTID
 gtid-mode           = ON

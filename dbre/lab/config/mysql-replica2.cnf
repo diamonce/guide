@@ -2,8 +2,8 @@
 server-id           = 3
 bind-address        = 0.0.0.0
 
-read-only           = ON
-super-read-only     = ON
+# read-only           = ON
+# super-read-only     = ON
 
 gtid-mode           = ON
 enforce-gtid-consistency = ON
