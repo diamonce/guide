@@ -32,6 +32,16 @@ wait_for_mysql "$PRIMARY"
 for r in "${REPLICAS[@]}"; do wait_for_mysql "$r"; done
 
 echo ""
+echo "=== Applying auth-compat SQL on all nodes ==="
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+for host in "$PRIMARY" "${REPLICAS[@]}"; do
+    docker exec -i -e MYSQL_PWD="$ROOT_PASS" "$host" mysql -u root \
+        < "$SCRIPT_DIR/../sql/04-auth-compat.sql" \
+        && echo "✅ $host auth-compat applied" \
+        || echo "❌ $host auth-compat failed"
+done
+
+echo ""
 echo "=== Primary status ==="
 docker exec -e MYSQL_PWD="$ROOT_PASS" "$PRIMARY" mysql -u root -e "SHOW MASTER STATUS\G"
 
