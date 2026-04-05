@@ -232,18 +232,165 @@ Uses binary log to apply changes incrementally, no long table locks.
 
 ---
 
+## Rollback Strategies `[I]`
+
+Not all migrations are reversible in the same way. Know your rollback before you run.
+
+| Migration type | Rollback procedure | Reversible? |
+|---------------|-------------------|-------------|
+| `ADD COLUMN` (nullable) | `DROP COLUMN` | Yes — instant |
+| `ADD COLUMN` with DEFAULT | `DROP COLUMN` | Yes — instant (Postgres 11+) |
+| `CREATE INDEX CONCURRENTLY` | `DROP INDEX CONCURRENTLY` | Yes |
+| Backfill (UPDATE in batches) | Reverse backfill (run opposite UPDATE) | Yes — but slow |
+| `DROP COLUMN` | Restore from snapshot | No — must snapshot before |
+| `DROP TABLE` | Restore from snapshot | No — must snapshot before |
+| `RENAME COLUMN` (via expand/contract) | Remove new column, restore old writes | Yes — if expand phase only |
+| `ALTER COLUMN TYPE` | Restore from snapshot | No |
+| Constraint (`NOT VALID` + `VALIDATE`) | `DROP CONSTRAINT` | Yes |
+
+**Rule:** any migration that touches existing data or removes structure needs a pre-migration snapshot.
+
+```bash
+# AWS RDS: snapshot before every risky migration
+aws rds create-db-snapshot \
+  --db-instance-identifier prod-db \
+  --db-snapshot-identifier "pre-migration-$(date +%Y%m%d-%H%M)"
+
+# Verify snapshot is available before proceeding
+aws rds describe-db-snapshots \
+  --db-snapshot-identifier "pre-migration-$(date +%Y%m%d-%H%M)" \
+  --query 'DBSnapshots[0].Status'
+```
+
+---
+
+## What to Do When a Migration Goes Wrong `[I]`
+
+### Step 1: Assess the situation
+
+```sql
+-- Is the migration still running?
+SELECT pid, now() - query_start AS duration, state, query
+FROM pg_stat_activity
+WHERE query NOT LIKE '%pg_stat_activity%'
+ORDER BY duration DESC;
+
+-- How many rows remain? (estimate from last_id progress in backfill)
+SELECT COUNT(*) FROM orders WHERE customer_email IS NULL;
+
+-- Is anything blocked behind it?
+SELECT
+  blocking.pid AS blocking_pid,
+  blocked.pid  AS blocked_pid,
+  blocking.query AS blocker,
+  blocked.query  AS blocked,
+  now() - blocked.query_start AS blocked_duration
+FROM pg_stat_activity blocked
+JOIN pg_stat_activity blocking
+  ON blocking.pid = ANY(pg_blocking_pids(blocked.pid));
+```
+
+### Step 2: Decision — wait or cancel?
+
+```
+Duration estimate acceptable AND no critical queries blocked?
+  → Wait. Monitor.
+
+Duration unacceptable OR critical queries blocked?
+  → Cancel the migration.
+```
+
+### Step 3: Cancel safely
+
+```sql
+-- Soft cancel (preferred — waits for safe point)
+SELECT pg_cancel_backend(:migration_pid);
+
+-- Hard terminate (use if soft cancel doesn't work after 30s)
+SELECT pg_terminate_backend(:migration_pid);
+```
+
+### Step 4: Clean up after a failed `CREATE INDEX CONCURRENTLY`
+
+A failed `CREATE INDEX CONCURRENTLY` leaves an `INVALID` index that continues to consume space and slow writes without helping reads:
+
+```sql
+-- Find invalid indexes
+SELECT indexname, tablename
+FROM pg_indexes
+JOIN pg_class ON pg_class.relname = pg_indexes.indexname
+JOIN pg_index ON pg_index.indexrelid = pg_class.oid
+WHERE NOT pg_index.indisvalid;
+
+-- Drop the invalid index, then retry
+DROP INDEX CONCURRENTLY idx_orders_customer_email;
+CREATE INDEX CONCURRENTLY idx_orders_customer_email ON orders(customer_email);
+```
+
+### Step 5: If rollback is needed
+
+```bash
+# Restore from pre-migration snapshot (RDS)
+aws rds restore-db-instance-from-db-snapshot \
+  --db-instance-identifier prod-db-restored \
+  --db-snapshot-identifier "pre-migration-20240315-1400"
+
+# Point application at restored instance, verify data
+# Then cut back DNS / connection string
+```
+
+---
+
+## What to Watch During a Migration `[I]`
+
+Open these dashboards before starting any migration with risk > Low:
+
+```sql
+-- Terminal 1: watch lock waits in real time
+SELECT
+  now() - query_start AS wait_duration,
+  pid,
+  wait_event_type,
+  wait_event,
+  LEFT(query, 80) AS query
+FROM pg_stat_activity
+WHERE wait_event_type = 'Lock'
+ORDER BY wait_duration DESC;
+
+-- Terminal 2: watch replication lag
+SELECT
+  client_addr,
+  state,
+  sent_lsn - replay_lsn AS lag_bytes,
+  replay_lag
+FROM pg_stat_replication;
+
+-- Terminal 3: disk usage (table rewrites can temporarily double disk)
+SELECT
+  pg_size_pretty(pg_total_relation_size('orders')) AS table_size,
+  pg_size_pretty(pg_relation_size('orders')) AS heap_size;
+```
+
+**Alert thresholds during migration:**
+- Replication lag > 60s → pause batching, let replica catch up
+- Lock wait > 30s → assess if migration is blocking critical app queries
+- Disk usage growth > 20% during migration → check for unexpected table rewrite
+
+---
+
 ## Migration Checklist `[A]`
 
 Before running a migration in production:
 
 - [ ] Migration tested on a production-sized copy of data
 - [ ] Estimated duration known (tested in staging)
-- [ ] Rollback plan documented
+- [ ] **Pre-migration snapshot taken** (`aws rds create-db-snapshot`)
+- [ ] Rollback procedure documented (see table above)
 - [ ] Application code is backward-compatible with both old and new schema
 - [ ] Batching used for large data updates
 - [ ] `CONCURRENTLY` used for index creation
 - [ ] `NOT VALID` + `VALIDATE CONSTRAINT` for PostgreSQL constraints
-- [ ] Monitoring dashboard open during migration
+- [ ] Monitoring terminals open (locks, replication lag, disk)
 - [ ] DBA / DBRE aware (for SEV1-risk changes)
 - [ ] Runbook updated
 
