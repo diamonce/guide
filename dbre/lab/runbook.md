@@ -33,17 +33,45 @@ Everything from the DBRE docs, hands-on. Docker-based, runs locally, no cloud ne
 
   toolkit container — pt-* tools, mysqldump, backups
   adminer          — web UI at localhost:8080
+
+  Monitoring stack
+  mysqld_exporter ×3 (:9104 :9105 :9106)
+    │  scrape every 15s
+    ▼
+  Prometheus :9090
+    │
+    ▼
+  Grafana :3000  (admin / admin)
+    ├── MySQL Overview       — Prometheus time-series metrics
+    └── MySQL Processlist    — live SQL: processlist, top queries, locks
 ```
 
 ---
 
 ## Prerequisites
 
+Run the setup script once — installs all tools via Homebrew:
+
 ```bash
-docker --version   # Docker 20+
-docker compose version   # Compose v2
-mysql --version    # mysql client (brew install mysql-client)
+cd dbre/lab
+chmod +x setup-macos.sh && ./setup-macos.sh
 ```
+
+What it installs:
+
+| Tool | Used for |
+|------|----------|
+| Docker Desktop | All lab containers |
+| `mysql-client` | mysql, mysqldump, mysqlbinlog, mysqlslap |
+| `percona-toolkit` | pt-online-schema-change, pt-table-checksum, pt-query-digest, pt-mysql-summary + 30 more |
+| `gh-ost` | Online schema changes (section 10) |
+| `sysbench` | MySQL load testing (load-testing.md) |
+| `fio` | Disk IOPS measurement for innodb_io_capacity tuning |
+| `netcat` | gh-ost socket control (pause/resume mid-migration) |
+| `pv` | Progress bar for mysqldump restores |
+| `jq` | JSON output parsing |
+
+`xtrabackup` — no macOS binary. Runs inside the `toolkit` Docker container: `docker exec toolkit xtrabackup --version`
 
 ---
 
@@ -356,6 +384,194 @@ GROUP BY c.id\G"
 
 ---
 
+## 10. Schema Changes — pt-osc, gh-ost, Online DDL
+
+```bash
+./scripts/10-schema-changes.sh
+```
+
+Covers:
+- `ALGORITHM=INSTANT` / `INPLACE` dry runs — use these before anything else
+- Table size and write rate measurement for duration estimation
+- `pt-online-schema-change` with safety flags (`--max-lag`, `--chunk-time`, `--critical-load`)
+- `gh-ost` with postponed cutover, control socket (pause/resume/abort mid-run)
+- Replication lag check after the change
+
+**Decision flow:**
+
+```
+Try ALGORITHM=INSTANT first (zero lock)
+  → fails? Try ALGORITHM=INPLACE, LOCK=NONE (brief MDL only)
+    → fails? COPY required → use pt-osc or gh-ost
+                → table < 1GB, low writes: pt-osc
+                → large table or high write rate: gh-ost
+```
+
+Manual ALGORITHM dry run (errors immediately if not supported — safe to run):
+
+```bash
+# Test INSTANT — will error if not supported, zero risk
+docker exec mysql-primary mysql -prootpass shopdb \
+  -e "ALTER TABLE orders ADD COLUMN notes TEXT, ALGORITHM=INSTANT;"
+
+# Test INPLACE
+docker exec mysql-primary mysql -prootpass shopdb \
+  -e "ALTER TABLE orders ADD INDEX idx_test (total), ALGORITHM=INPLACE, LOCK=NONE;"
+
+# Never run ALGORITHM=COPY on a large table — use pt-osc or gh-ost instead
+```
+
+Control gh-ost while running:
+
+```bash
+# Pause (e.g. peak traffic window)
+echo throttle | nc -U /tmp/gh-ost-lab.sock
+
+# Resume
+echo no-throttle | nc -U /tmp/gh-ost-lab.sock
+
+# Check ETA and row progress
+echo status | nc -U /tmp/gh-ost-lab.sock
+
+# Hard abort (drops ghost table, original untouched)
+echo panic | nc -U /tmp/gh-ost-lab.sock
+```
+
+While any schema change runs, watch Grafana **MySQL Processlist** dashboard:
+- **Active Queries** — see pt-osc chunk SELECTs/INSERTs in real time
+- **Active Transactions** — see if migration holds a long transaction
+- **Lock Waits** — any app queries blocked behind the migration's MDL
+
+---
+
+## 11. Monitoring — Grafana + Prometheus
+
+### Access
+
+| UI | URL | Credentials |
+|----|-----|-------------|
+| Grafana | http://localhost:3000 | admin / admin |
+| Prometheus | http://localhost:9090 | — |
+| HAProxy stats | http://localhost:8404/stats | — |
+| Adminer | http://localhost:8080 | root / rootpass |
+| mysqld_exporter (primary) | http://localhost:9104/metrics | — |
+
+### Grafana dashboards (auto-provisioned)
+
+Navigate to **Dashboards → MySQL Lab** after startup.
+
+**MySQL Overview** — Prometheus time-series:
+- MySQL Up per node (green/red)
+- Max replication lag with threshold coloring
+- Connection utilization gauge
+- Queries/sec and slow queries/sec
+- Replication lag over time per replica
+- InnoDB buffer pool hit ratio (target > 99%)
+- Row lock waits/sec
+- Binlog size
+
+**MySQL Processlist & Performance** — direct SQL against primary:
+- Live active queries (`performance_schema.processlist` filtered to non-Sleep)
+- Top 20 queries by total time (`events_statements_summary_by_digest`) — avg ms, max ms, rows examined, no-index flag highlighted in red
+- Active InnoDB transactions with age (long-running = red)
+- Lock waits: who is blocking who (`performance_schema.data_lock_waits`)
+- Query error rates
+- Replica connection status from replica1
+
+### Verify mysqld_exporter is scraping
+
+```bash
+# Check scrape targets in Prometheus
+open http://localhost:9090/targets
+
+# Raw metrics from primary exporter
+curl -s http://localhost:9104/metrics | grep mysql_up
+curl -s http://localhost:9104/metrics | grep seconds_behind_master
+
+# Replication lag should be 0 on both replicas after setup
+curl -s http://localhost:9105/metrics | grep slave_status_seconds_behind_master
+curl -s http://localhost:9106/metrics | grep slave_status_seconds_behind_master
+```
+
+### Run a load test and watch it live
+
+```bash
+# Generate traffic — run this while watching Grafana
+docker exec mysql-primary mysql -prootpass shopdb -e "
+  -- Insert 1000 rows to watch QPS climb
+  SET @i = 0;
+  REPEAT
+    INSERT INTO customers (name, email)
+    VALUES (CONCAT('user', @i), CONCAT('user', @i, '@test.com'));
+    SET @i = @i + 1;
+  UNTIL @i >= 200 END REPEAT;"
+
+# Or run the parallel writes script
+./scripts/07-parallel-writes.sh
+```
+
+Then switch to the **MySQL Processlist** dashboard — you'll see active queries in the processlist panel and them appear in the top-queries-by-time table after they complete.
+
+### Force a slow query and see it surface
+
+```bash
+# Enable slow log and lower threshold to 0 (catch everything)
+docker exec mysql-primary mysql -prootpass -e "
+  SET GLOBAL long_query_time = 0;
+  SET GLOBAL slow_query_log = ON;"
+
+# Run a deliberately slow query
+docker exec mysql-primary mysql -prootpass shopdb -e "
+  SELECT SQL_NO_CACHE c.name, COUNT(o.id), SUM(o.total)
+  FROM customers c
+  LEFT JOIN orders o ON o.customer_id = c.id
+  GROUP BY c.id
+  ORDER BY SUM(o.total) DESC;"
+
+# See it in performance_schema top queries
+docker exec mysql-primary mysql -prootpass -e "
+  SELECT SUBSTRING(DIGEST_TEXT,1,80) AS query,
+         COUNT_STAR AS calls,
+         ROUND(AVG_TIMER_WAIT/1e9,2) AS avg_ms
+  FROM performance_schema.events_statements_summary_by_digest
+  WHERE SCHEMA_NAME='shopdb'
+  ORDER BY SUM_TIMER_WAIT DESC LIMIT 5;" 2>/dev/null
+
+# Reset threshold
+docker exec mysql-primary mysql -prootpass -e "SET GLOBAL long_query_time = 1;"
+```
+
+### Simulate lock contention and see it in Grafana
+
+```bash
+# Terminal 1 — hold a transaction open
+docker exec -it mysql-primary mysql -prootpass shopdb -e "
+  START TRANSACTION;
+  UPDATE customers SET name='locked' WHERE id=1;
+  SELECT SLEEP(30);
+  COMMIT;" &
+
+# Terminal 2 — try to update the same row (will block)
+docker exec mysql-primary mysql -prootpass shopdb -e "
+  UPDATE customers SET name='blocked' WHERE id=1;"
+
+# While those run — check Grafana Processlist dashboard:
+# • Active Queries panel: shows both threads
+# • Active Transactions: shows age ticking up
+# • Lock Waits: shows blocking_thread highlighted in red
+```
+
+### Reset performance_schema counters
+
+```bash
+# Clears events_statements_summary_by_digest — useful between test runs
+docker exec mysql-primary mysql -prootpass -e "
+  TRUNCATE TABLE performance_schema.events_statements_summary_by_digest;
+  TRUNCATE TABLE performance_schema.events_statements_history_long;"
+```
+
+---
+
 ## Useful one-liners
 
 ```bash
@@ -412,9 +628,11 @@ docker compose down -v
 ## Related docs
 
 - [Fundamentals](../fundamentals.md) — connection pooling, locks, monitoring queries
-- [Performance Tuning](../performance.md) — EXPLAIN, indexes, pg_stat_statements
-- [Backup & Recovery](../backup-recovery.md) — pgBackRest, PITR concepts
+- [Observability](../observability.md) — mysqld_exporter, alert hierarchy, PromQL reference
+- [Performance Tuning](../performance.md) — EXPLAIN, indexes, events_statements_summary_by_digest
+- [Backup & Recovery](../backup-recovery.md) — PITR, mysqldump, xtrabackup
 - [Migrations](../migrations.md) — pt-online-schema-change, expand/contract
+- [HA & Failover](../ha-failover.md) — ProxySQL routing, Orchestrator, failover runbooks
 - [Scaling](../scaling.md) — read replicas, ProxySQL, sharding
 - [Anti-Patterns](../antipatterns.md) — sqlcheck categories
 - [percona-toolkit](../../resources/percona-toolkit/README.md) — all pt-* tools

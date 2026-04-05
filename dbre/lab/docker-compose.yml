@@ -11,6 +11,19 @@ version: "3.8"
 #       └── ProxySQL :6033 ──► auto read/write split
 #                   :6032    admin UI
 #
+#   Monitoring stack:
+#       mysqld-exporter-{primary,replica1,replica2} :9104-9106
+#           │  scrape every 15s (global status, replica status, innodb metrics, processlist)
+#           ▼
+#       Prometheus :9090  ──► stores time-series
+#           │
+#           ▼
+#       Grafana :3000
+#           ├── Dashboard: MySQL Overview    (Prometheus — time-series)
+#           └── Dashboard: MySQL Processlist (MySQL datasource — live SQL tables)
+#               queries: SHOW PROCESSLIST, events_statements_summary_by_digest,
+#                        innodb_trx, data_lock_waits
+#
 #   Percona Toolkit container has all pt-* tools + mysqldump
 
 networks:
@@ -22,6 +35,8 @@ volumes:
   replica1-data:
   replica2-data:
   backup-data:
+  prometheus-data:
+  grafana-data:
 
 services:
 
@@ -44,6 +59,7 @@ services:
       - ./config/mysql-primary.cnf:/etc/mysql/conf.d/replication.cnf:ro
       - ./sql/init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
       - ./sql/create-repl-user.sql:/docker-entrypoint-initdb.d/02-repl.sql:ro
+      - ./sql/create-monitoring-user.sql:/docker-entrypoint-initdb.d/03-monitoring.sql:ro
       - backup-data:/backup
     networks:
       db-net:
@@ -172,3 +188,118 @@ services:
       - "8080:8080"
     networks:
       - db-net
+
+  # ─────────────────────────────────────────
+  # mysqld_exporter — scrapes MySQL metrics
+  # One per node: global_status, replica_status, innodb_metrics, processlist
+  # ─────────────────────────────────────────
+  mysqld-exporter-primary:
+    image: prom/mysqld-exporter:v0.15.1
+    container_name: mysqld-exporter-primary
+    restart: unless-stopped
+    environment:
+      DATA_SOURCE_NAME: "monitoring:monitorpass@(mysql-primary:3306)/"
+    command:
+      - --collect.global_status
+      - --collect.global_variables
+      - --collect.info_schema.processlist
+      - --collect.info_schema.innodb_metrics
+      - --collect.binlog_size
+      - --no-collect.info_schema.tables
+      - --no-collect.slave_status        # primary has no replica status
+    ports:
+      - "9104:9104"
+    networks:
+      - db-net
+    depends_on:
+      mysql-primary:
+        condition: service_healthy
+
+  mysqld-exporter-replica1:
+    image: prom/mysqld-exporter:v0.15.1
+    container_name: mysqld-exporter-replica1
+    restart: unless-stopped
+    environment:
+      DATA_SOURCE_NAME: "monitoring:monitorpass@(mysql-replica1:3306)/"
+    command:
+      - --collect.global_status
+      - --collect.global_variables
+      - --collect.slave_status            # replica lag, IO/SQL thread state
+      - --collect.info_schema.innodb_metrics
+      - --no-collect.info_schema.tables
+    ports:
+      - "9105:9104"
+    networks:
+      - db-net
+    depends_on:
+      mysql-replica1:
+        condition: service_healthy
+
+  mysqld-exporter-replica2:
+    image: prom/mysqld-exporter:v0.15.1
+    container_name: mysqld-exporter-replica2
+    restart: unless-stopped
+    environment:
+      DATA_SOURCE_NAME: "monitoring:monitorpass@(mysql-replica2:3306)/"
+    command:
+      - --collect.global_status
+      - --collect.global_variables
+      - --collect.slave_status
+      - --collect.info_schema.innodb_metrics
+      - --no-collect.info_schema.tables
+    ports:
+      - "9106:9104"
+    networks:
+      - db-net
+    depends_on:
+      mysql-replica2:
+        condition: service_healthy
+
+  # ─────────────────────────────────────────
+  # Prometheus — time-series storage
+  # UI: localhost:9090
+  # ─────────────────────────────────────────
+  prometheus:
+    image: prom/prometheus:v2.51.0
+    container_name: prometheus
+    restart: unless-stopped
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./config/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=7d
+      - --web.console.libraries=/etc/prometheus/console_libraries
+      - --web.console.templates=/etc/prometheus/consoles
+    networks:
+      - db-net
+    depends_on:
+      - mysqld-exporter-primary
+
+  # ─────────────────────────────────────────
+  # Grafana — dashboards
+  # UI: localhost:3000  admin / admin
+  # Dashboards auto-provisioned from config/grafana/
+  # ─────────────────────────────────────────
+  grafana:
+    image: grafana/grafana:10.4.2
+    container_name: grafana
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./config/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./config/grafana/dashboards:/etc/grafana/dashboards:ro
+    networks:
+      - db-net
+    depends_on:
+      - prometheus

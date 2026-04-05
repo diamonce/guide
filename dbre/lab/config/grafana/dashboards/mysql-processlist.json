@@ -1,0 +1,206 @@
+{
+  "id": null,
+  "uid": "mysql-processlist",
+  "title": "MySQL Processlist & Performance",
+  "description": "Live active queries, top queries by time, active transactions, lock waits — direct SQL against performance_schema",
+  "tags": ["mysql", "dbre", "lab", "processlist"],
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "5s",
+  "time": {"from": "now-15m", "to": "now"},
+  "graphTooltip": 0,
+  "editable": true,
+  "panels": [
+
+    {
+      "id": 1,
+      "type": "table",
+      "title": "Active Queries — SHOW PROCESSLIST (non-sleeping)",
+      "description": "Live view of all running queries. Refresh every 5s. Long-running queries here are candidates for KILL.",
+      "gridPos": {"x": 0, "y": 0, "w": 24, "h": 8},
+      "datasource": {"type": "mysql", "uid": "mysql-primary"},
+      "targets": [{
+        "rawSql": "SELECT\n  PROCESSLIST_ID          AS id,\n  PROCESSLIST_USER        AS user,\n  PROCESSLIST_HOST        AS host,\n  PROCESSLIST_DB          AS db,\n  PROCESSLIST_COMMAND     AS command,\n  PROCESSLIST_TIME        AS time_sec,\n  PROCESSLIST_STATE       AS state,\n  LEFT(IFNULL(PROCESSLIST_INFO, ''), 250) AS query\nFROM performance_schema.processlist\nWHERE PROCESSLIST_COMMAND != 'Sleep'\nORDER BY PROCESSLIST_TIME DESC",
+        "format": "table",
+        "refId": "A"
+      }],
+      "options": {
+        "showHeader": true,
+        "footer": {"show": false}
+      },
+      "fieldConfig": {
+        "defaults": {"custom": {"align": "left"}},
+        "overrides": [
+          {
+            "matcher": {"id": "byName", "options": "time_sec"},
+            "properties": [
+              {"id": "displayName", "value": "time (s)"},
+              {"id": "custom.width", "value": 80},
+              {"id": "thresholds", "value": {
+                "mode": "absolute",
+                "steps": [{"color": "green", "value": null}, {"color": "yellow", "value": 5}, {"color": "red", "value": 30}]
+              }},
+              {"id": "custom.displayMode", "value": "color-background"}
+            ]
+          },
+          {
+            "matcher": {"id": "byName", "options": "query"},
+            "properties": [{"id": "custom.width", "value": 600}]
+          }
+        ]
+      }
+    },
+
+    {
+      "id": 2,
+      "type": "table",
+      "title": "Top 20 Queries by Total Time — performance_schema.events_statements_summary_by_digest",
+      "description": "Aggregate query patterns ranked by cumulative execution time since last TRUNCATE or restart. These are your tuning targets.",
+      "gridPos": {"x": 0, "y": 8, "w": 24, "h": 10},
+      "datasource": {"type": "mysql", "uid": "mysql-primary"},
+      "targets": [{
+        "rawSql": "SELECT\n  SCHEMA_NAME                                          AS db,\n  SUBSTRING(REPLACE(REPLACE(DIGEST_TEXT, '\\n', ' '), '  ', ' '), 1, 120) AS query_pattern,\n  COUNT_STAR                                           AS calls,\n  ROUND(AVG_TIMER_WAIT      / 1e9, 2)                 AS avg_ms,\n  ROUND(MAX_TIMER_WAIT      / 1e9, 2)                 AS max_ms,\n  ROUND(SUM_TIMER_WAIT      / 1e9, 2)                 AS total_ms,\n  ROUND(SUM_ROWS_EXAMINED   / COUNT_STAR)             AS avg_rows_examined,\n  ROUND(SUM_ROWS_SENT       / COUNT_STAR)             AS avg_rows_sent,\n  SUM_NO_INDEX_USED                                    AS no_index_used,\n  SUM_NO_GOOD_INDEX_USED                               AS bad_index_used\nFROM performance_schema.events_statements_summary_by_digest\nWHERE DIGEST_TEXT IS NOT NULL\n  AND SCHEMA_NAME NOT IN ('mysql', 'performance_schema', 'information_schema', 'sys')\nORDER BY SUM_TIMER_WAIT DESC\nLIMIT 20",
+        "format": "table",
+        "refId": "A"
+      }],
+      "options": {"showHeader": true, "footer": {"show": false}},
+      "fieldConfig": {
+        "defaults": {"custom": {"align": "right"}},
+        "overrides": [
+          {
+            "matcher": {"id": "byName", "options": "query_pattern"},
+            "properties": [{"id": "custom.align", "value": "left"}, {"id": "custom.width", "value": 500}]
+          },
+          {
+            "matcher": {"id": "byName", "options": "avg_ms"},
+            "properties": [
+              {"id": "thresholds", "value": {
+                "mode": "absolute",
+                "steps": [{"color": "green", "value": null}, {"color": "yellow", "value": 100}, {"color": "red", "value": 1000}]
+              }},
+              {"id": "custom.displayMode", "value": "color-background"}
+            ]
+          },
+          {
+            "matcher": {"id": "byName", "options": "no_index_used"},
+            "properties": [
+              {"id": "thresholds", "value": {
+                "mode": "absolute",
+                "steps": [{"color": "green", "value": null}, {"color": "red", "value": 1}]
+              }},
+              {"id": "custom.displayMode", "value": "color-background"}
+            ]
+          }
+        ]
+      }
+    },
+
+    {
+      "id": 3,
+      "type": "table",
+      "title": "Active InnoDB Transactions",
+      "description": "Long-running transactions hold row locks and block other queries. Age > 10s is worth investigating.",
+      "gridPos": {"x": 0, "y": 18, "w": 14, "h": 7},
+      "datasource": {"type": "mysql", "uid": "mysql-primary"},
+      "targets": [{
+        "rawSql": "SELECT\n  trx_id,\n  trx_state,\n  trx_started,\n  TIMESTAMPDIFF(SECOND, trx_started, NOW())  AS age_sec,\n  trx_rows_locked,\n  trx_rows_modified,\n  trx_mysql_thread_id                        AS thread_id,\n  LEFT(IFNULL(trx_query, '(no query)'), 200) AS current_query\nFROM information_schema.innodb_trx\nORDER BY trx_started ASC",
+        "format": "table",
+        "refId": "A"
+      }],
+      "options": {"showHeader": true},
+      "fieldConfig": {
+        "defaults": {"custom": {"align": "left"}},
+        "overrides": [{
+          "matcher": {"id": "byName", "options": "age_sec"},
+          "properties": [
+            {"id": "displayName", "value": "age (s)"},
+            {"id": "thresholds", "value": {
+              "mode": "absolute",
+              "steps": [{"color": "green", "value": null}, {"color": "yellow", "value": 5}, {"color": "red", "value": 30}]
+            }},
+            {"id": "custom.displayMode", "value": "color-background"}
+          ]
+        }]
+      }
+    },
+
+    {
+      "id": 4,
+      "type": "table",
+      "title": "InnoDB Lock Waits",
+      "description": "Who is blocking who right now. Empty = no contention. Kill the blocking_thread to unblock.",
+      "gridPos": {"x": 14, "y": 18, "w": 10, "h": 7},
+      "datasource": {"type": "mysql", "uid": "mysql-primary"},
+      "targets": [{
+        "rawSql": "SELECT\n  r.ENGINE_TRANSACTION_ID                  AS waiting_txn,\n  r.THREAD_ID                              AS waiting_thread,\n  b.ENGINE_TRANSACTION_ID                  AS blocking_txn,\n  b.THREAD_ID                              AS blocking_thread,\n  r.OBJECT_SCHEMA                          AS db,\n  r.OBJECT_NAME                            AS tbl,\n  r.LOCK_TYPE                              AS lock_type,\n  r.LOCK_MODE                              AS lock_mode\nFROM performance_schema.data_lock_waits w\nJOIN performance_schema.data_locks r\n  ON r.ENGINE_LOCK_ID = w.REQUESTING_ENGINE_LOCK_ID\nJOIN performance_schema.data_locks b\n  ON b.ENGINE_LOCK_ID = w.BLOCKING_ENGINE_LOCK_ID",
+        "format": "table",
+        "refId": "A"
+      }],
+      "options": {"showHeader": true},
+      "fieldConfig": {
+        "defaults": {"custom": {"align": "left"}},
+        "overrides": [{
+          "matcher": {"id": "byName", "options": "blocking_thread"},
+          "properties": [
+            {"id": "custom.displayMode", "value": "color-background"},
+            {"id": "color", "value": {"fixedColor": "red", "mode": "fixed"}}
+          ]
+        }]
+      }
+    },
+
+    {
+      "id": 5,
+      "type": "table",
+      "title": "Recent Errors — events_statements_summary_by_digest (errors > 0)",
+      "description": "Query patterns that produced errors. These often surface silent application bugs.",
+      "gridPos": {"x": 0, "y": 25, "w": 24, "h": 6},
+      "datasource": {"type": "mysql", "uid": "mysql-primary"},
+      "targets": [{
+        "rawSql": "SELECT\n  SCHEMA_NAME                                           AS db,\n  SUBSTRING(REPLACE(DIGEST_TEXT, '\\n', ' '), 1, 120)  AS query_pattern,\n  COUNT_STAR                                            AS calls,\n  SUM_ERRORS                                            AS errors,\n  SUM_WARNINGS                                          AS warnings,\n  ROUND(SUM_ERRORS / COUNT_STAR * 100, 2)              AS error_rate_pct,\n  LAST_SEEN                                             AS last_seen\nFROM performance_schema.events_statements_summary_by_digest\nWHERE SUM_ERRORS > 0\n  AND SCHEMA_NAME NOT IN ('mysql', 'performance_schema', 'information_schema', 'sys')\nORDER BY SUM_ERRORS DESC\nLIMIT 20",
+        "format": "table",
+        "refId": "A"
+      }],
+      "options": {"showHeader": true},
+      "fieldConfig": {
+        "defaults": {"custom": {"align": "right"}},
+        "overrides": [
+          {"matcher": {"id": "byName", "options": "query_pattern"}, "properties": [{"id": "custom.align", "value": "left"}, {"id": "custom.width", "value": 500}]},
+          {
+            "matcher": {"id": "byName", "options": "errors"},
+            "properties": [
+              {"id": "custom.displayMode", "value": "color-background"},
+              {"id": "color", "value": {"fixedColor": "red", "mode": "fixed"}}
+            ]
+          }
+        ]
+      }
+    },
+
+    {
+      "id": 6,
+      "type": "table",
+      "title": "Replication Status — all replicas",
+      "description": "IO thread, SQL thread, and lag per replica. Run against each replica datasource in real use.",
+      "gridPos": {"x": 0, "y": 31, "w": 24, "h": 5},
+      "datasource": {"type": "mysql", "uid": "mysql-replica1"},
+      "targets": [{
+        "rawSql": "SELECT\n  @@hostname                   AS replica,\n  SERVICE_STATE                AS io_thread,\n  LAST_ERROR_NUMBER            AS io_error_code,\n  LEFT(LAST_ERROR_MESSAGE, 80) AS io_error,\n  SOURCE_HOST                  AS source_host,\n  SOURCE_LOG_FILE              AS log_file,\n  READ_SOURCE_LOG_POS          AS log_pos\nFROM performance_schema.replication_connection_status\nLIMIT 1",
+        "format": "table",
+        "refId": "A"
+      }],
+      "options": {"showHeader": true},
+      "fieldConfig": {
+        "defaults": {"custom": {"align": "left"}},
+        "overrides": [{
+          "matcher": {"id": "byName", "options": "io_thread"},
+          "properties": [
+            {"id": "mappings", "value": [{"type": "value", "options": {"ON": {"text": "ON", "color": "green"}, "OFF": {"text": "OFF", "color": "red"}}}]},
+            {"id": "custom.displayMode", "value": "color-background"}
+          ]
+        }]
+      }
+    }
+
+  ]
+}

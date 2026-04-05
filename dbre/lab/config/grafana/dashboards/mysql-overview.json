@@ -1,0 +1,308 @@
+{
+  "id": null,
+  "uid": "mysql-overview",
+  "title": "MySQL Overview",
+  "description": "Cluster health, throughput, replication lag, InnoDB — sourced from mysqld_exporter via Prometheus",
+  "tags": ["mysql", "dbre", "lab"],
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "10s",
+  "time": {"from": "now-1h", "to": "now"},
+  "graphTooltip": 1,
+  "editable": true,
+  "panels": [
+
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "MySQL Up",
+      "description": "1 = up, 0 = down for each node",
+      "gridPos": {"x": 0, "y": 0, "w": 8, "h": 4},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [{
+        "expr": "mysql_up",
+        "legendFormat": "{{mysql_instance}}",
+        "refId": "A"
+      }],
+      "options": {
+        "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false},
+        "orientation": "horizontal",
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "textMode": "auto"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [{
+            "type": "value",
+            "options": {
+              "0": {"text": "DOWN", "color": "red", "index": 0},
+              "1": {"text": "UP", "color": "green", "index": 1}
+            }
+          }],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [{"color": "red", "value": null}, {"color": "green", "value": 1}]
+          },
+          "color": {"mode": "thresholds"}
+        }
+      }
+    },
+
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "Max Replication Lag",
+      "description": "Worst-case lag across all replicas. >30s = warning, >300s = critical",
+      "gridPos": {"x": 8, "y": 0, "w": 4, "h": 4},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [{
+        "expr": "max(mysql_slave_status_seconds_behind_master)",
+        "legendFormat": "lag (s)",
+        "refId": "A"
+      }],
+      "options": {
+        "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false},
+        "colorMode": "background",
+        "graphMode": "area",
+        "orientation": "auto"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "green", "value": null},
+              {"color": "yellow", "value": 30},
+              {"color": "red", "value": 300}
+            ]
+          },
+          "color": {"mode": "thresholds"}
+        }
+      }
+    },
+
+    {
+      "id": 3,
+      "type": "gauge",
+      "title": "Connection Utilization (primary)",
+      "description": "threads_connected / max_connections. >80% → investigate, >95% → page",
+      "gridPos": {"x": 12, "y": 0, "w": 6, "h": 4},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [{
+        "expr": "mysql_global_status_threads_connected{mysql_instance='primary'} / mysql_global_variables_max_connections{mysql_instance='primary'} * 100",
+        "legendFormat": "utilization %",
+        "refId": "A"
+      }],
+      "options": {
+        "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false},
+        "showThresholdLabels": false,
+        "showThresholdMarkers": true
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "max": 100,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "green", "value": null},
+              {"color": "yellow", "value": 80},
+              {"color": "red", "value": 95}
+            ]
+          },
+          "color": {"mode": "thresholds"}
+        }
+      }
+    },
+
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "Threads Running (primary)",
+      "description": "Active queries right now. Spike = pile-up or lock contention",
+      "gridPos": {"x": 18, "y": 0, "w": 6, "h": 4},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [{
+        "expr": "mysql_global_status_threads_running{mysql_instance='primary'}",
+        "legendFormat": "running",
+        "refId": "A"
+      }],
+      "options": {
+        "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false},
+        "colorMode": "background",
+        "graphMode": "area",
+        "orientation": "auto"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "green", "value": null},
+              {"color": "yellow", "value": 10},
+              {"color": "red", "value": 20}
+            ]
+          },
+          "color": {"mode": "thresholds"}
+        }
+      }
+    },
+
+    {
+      "id": 5,
+      "type": "timeseries",
+      "title": "Queries per Second",
+      "description": "Total QPS and slow QPS per node",
+      "gridPos": {"x": 0, "y": 4, "w": 12, "h": 8},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [
+        {
+          "expr": "rate(mysql_global_status_queries[2m])",
+          "legendFormat": "{{mysql_instance}} — total QPS",
+          "refId": "A"
+        },
+        {
+          "expr": "rate(mysql_global_status_slow_queries[2m])",
+          "legendFormat": "{{mysql_instance}} — slow QPS",
+          "refId": "B"
+        }
+      ],
+      "options": {"tooltip": {"mode": "multi", "sort": "desc"}},
+      "fieldConfig": {
+        "defaults": {"unit": "reqps"},
+        "overrides": [{
+          "matcher": {"id": "byRegexp", "options": ".*slow.*"},
+          "properties": [
+            {"id": "custom.lineWidth", "value": 2},
+            {"id": "color", "value": {"fixedColor": "orange", "mode": "fixed"}}
+          ]
+        }]
+      }
+    },
+
+    {
+      "id": 6,
+      "type": "timeseries",
+      "title": "Threads Connected / Running",
+      "description": "Connected = pool size, Running = active queries",
+      "gridPos": {"x": 12, "y": 4, "w": 12, "h": 8},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [
+        {
+          "expr": "mysql_global_status_threads_connected",
+          "legendFormat": "{{mysql_instance}} — connected",
+          "refId": "A"
+        },
+        {
+          "expr": "mysql_global_status_threads_running",
+          "legendFormat": "{{mysql_instance}} — running",
+          "refId": "B"
+        }
+      ],
+      "options": {"tooltip": {"mode": "multi", "sort": "desc"}},
+      "fieldConfig": {"defaults": {"unit": "short"}}
+    },
+
+    {
+      "id": 7,
+      "type": "timeseries",
+      "title": "Replication Lag per Replica",
+      "description": "Seconds_Behind_Source per replica. 0 = fully caught up",
+      "gridPos": {"x": 0, "y": 12, "w": 12, "h": 8},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [{
+        "expr": "mysql_slave_status_seconds_behind_master",
+        "legendFormat": "{{mysql_instance}}",
+        "refId": "A"
+      }],
+      "options": {"tooltip": {"mode": "multi", "sort": "desc"}},
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "green", "value": null},
+              {"color": "yellow", "value": 30},
+              {"color": "red", "value": 300}
+            ]
+          }
+        }
+      }
+    },
+
+    {
+      "id": 8,
+      "type": "timeseries",
+      "title": "InnoDB Buffer Pool Hit Ratio",
+      "description": "Target > 99%. Drop = working set no longer fits in buffer pool",
+      "gridPos": {"x": 12, "y": 12, "w": 12, "h": 8},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [{
+        "expr": "(1 - rate(mysql_global_status_innodb_buffer_pool_reads[5m]) / rate(mysql_global_status_innodb_buffer_pool_read_requests[5m])) * 100",
+        "legendFormat": "{{mysql_instance}} — hit ratio %",
+        "refId": "A"
+      }],
+      "options": {"tooltip": {"mode": "multi", "sort": "desc"}},
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 90,
+          "max": 100,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "red", "value": null},
+              {"color": "yellow", "value": 95},
+              {"color": "green", "value": 99}
+            ]
+          }
+        }
+      }
+    },
+
+    {
+      "id": 9,
+      "type": "timeseries",
+      "title": "InnoDB Row Lock Waits / sec",
+      "description": "Spikes = competing transactions. Check processlist dashboard for blocking queries",
+      "gridPos": {"x": 0, "y": 20, "w": 12, "h": 8},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [
+        {
+          "expr": "rate(mysql_global_status_innodb_row_lock_waits[2m])",
+          "legendFormat": "{{mysql_instance}} — lock waits/s",
+          "refId": "A"
+        },
+        {
+          "expr": "mysql_global_status_innodb_row_lock_time_avg",
+          "legendFormat": "{{mysql_instance}} — avg wait ms",
+          "refId": "B"
+        }
+      ],
+      "options": {"tooltip": {"mode": "multi"}},
+      "fieldConfig": {"defaults": {"unit": "short"}}
+    },
+
+    {
+      "id": 10,
+      "type": "timeseries",
+      "title": "Binlog Size",
+      "description": "Binary log disk usage. Watch for runaway growth filling the disk",
+      "gridPos": {"x": 12, "y": 20, "w": 12, "h": 8},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [{
+        "expr": "mysql_global_status_binlog_size",
+        "legendFormat": "{{mysql_instance}}",
+        "refId": "A"
+      }],
+      "options": {"tooltip": {"mode": "multi"}},
+      "fieldConfig": {"defaults": {"unit": "bytes"}}
+    }
+
+  ]
+}

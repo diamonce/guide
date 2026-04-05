@@ -1,0 +1,22 @@
+global:
+  scrape_interval:     15s
+  evaluation_interval: 15s
+
+scrape_configs:
+
+  # ── MySQL nodes (one exporter per node) ──────────────────────────────────
+  - job_name: mysql
+    static_configs:
+      - targets:
+          - mysqld-exporter-primary:9104
+          - mysqld-exporter-replica1:9104
+          - mysqld-exporter-replica2:9104
+        labels:
+          cluster: shopdb
+    # Extract mysql_instance label from exporter hostname
+    # mysqld-exporter-primary → primary, mysqld-exporter-replica1 → replica1
+    relabel_configs:
+      - source_labels: [__address__]
+        regex: 'mysqld-exporter-(.+):9104'
+        target_label: mysql_instance
+        replacement: '${1}'

@@ -1,0 +1,41 @@
+apiVersion: 1
+
+datasources:
+
+  # ── Prometheus — time-series metrics from mysqld_exporter ────────────────
+  - name: Prometheus
+    type: prometheus
+    uid: prometheus
+    url: http://prometheus:9090
+    isDefault: true
+    access: proxy
+    jsonData:
+      timeInterval: "15s"
+
+  # ── MySQL Primary — direct SQL datasource for processlist / perf queries ─
+  - name: MySQL-Primary
+    type: mysql
+    uid: mysql-primary
+    url: mysql-primary:3306
+    user: monitoring
+    jsonData:
+      database: performance_schema
+      maxOpenConns: 5
+      maxIdleConns: 2
+      connMaxLifetime: 14400
+    secureJsonData:
+      password: monitorpass
+
+  # ── MySQL Replica 1 — useful for comparing replica query patterns ─────────
+  - name: MySQL-Replica1
+    type: mysql
+    uid: mysql-replica1
+    url: mysql-replica1:3306
+    user: monitoring
+    jsonData:
+      database: performance_schema
+      maxOpenConns: 3
+      maxIdleConns: 1
+      connMaxLifetime: 14400
+    secureJsonData:
+      password: monitorpass
