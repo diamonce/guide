@@ -8,10 +8,21 @@ PRIMARY="mysql-primary"
 REPLICAS=("mysql-replica1" "mysql-replica2")
 ROOT_PASS="rootpass"
 
+# 1. Wait function now includes a timeout
 wait_for_mysql() {
     local host=$1
-    echo "⏳ waiting for $host..."
-    until docker exec "$host" mysqladmin ping -prootpass -s 2>/dev/null; do
+    local max_retries=30
+    local count=0
+    
+    echo "⏳ Waiting for $host..."
+    
+    # Passing password via MYSQL_PWD hides the insecure CLI warnings
+    until docker exec -e MYSQL_PWD="$ROOT_PASS" "$host" mysqladmin ping -u root -s 2>/dev/null; do
+        count=$((count + 1))
+        if [ $count -ge $max_retries ]; then
+            echo "❌ Error: Timed out waiting for $host after 60 seconds." >&2
+            exit 1
+        fi
         sleep 2
     done
     echo "✅ $host is up"
@@ -22,13 +33,14 @@ for r in "${REPLICAS[@]}"; do wait_for_mysql "$r"; done
 
 echo ""
 echo "=== Primary status ==="
-docker exec "$PRIMARY" mysql -prootpass -e "SHOW MASTER STATUS\G"
+docker exec -e MYSQL_PWD="$ROOT_PASS" "$PRIMARY" mysql -u root -e "SHOW MASTER STATUS\G"
 
 for REPLICA in "${REPLICAS[@]}"; do
     echo ""
     echo "=== Configuring $REPLICA ==="
 
-    docker exec "$REPLICA" mysql -prootpass <<-EOF
+    # 2. Added '-i' flag so docker exec actually reads the EOF block
+    docker exec -i -e MYSQL_PWD="$ROOT_PASS" "$REPLICA" mysql -u root <<-EOF
         STOP REPLICA;
 
         CHANGE REPLICATION SOURCE TO
@@ -41,11 +53,34 @@ for REPLICA in "${REPLICAS[@]}"; do
         START REPLICA;
 EOF
 
+    # 3. Added a brief pause to let IO/SQL threads connect before checking status
+    echo "⏳ Waiting for replication threads to start..."
+    sleep 2
+
     echo "--- Replica status for $REPLICA ---"
-    docker exec "$REPLICA" mysql -prootpass -e "SHOW REPLICA STATUS\G" \
-        | grep -E "Replica_IO_Running|Replica_SQL_Running|Seconds_Behind|Last_Error|Executed_Gtid_Set"
+    
+    # 4. Added '|| true' so grep doesn't silently kill the script if it finds nothing
+    docker exec -e MYSQL_PWD="$ROOT_PASS" "$REPLICA" mysql -u root -e "SHOW REPLICA STATUS\G" \
+        | grep -E "Replica_IO_Running|Replica_SQL_Running|Seconds_Behind|Last_Error|Executed_Gtid_Set" || true
 done
+
+wait_for_mysql "$PRIMARY"
+for r in "${REPLICAS[@]}"; do wait_for_mysql "$r"; done
+
+# ---------------------------------------------------------
+# NEW: Create HAProxy health check user on the Primary
+# ---------------------------------------------------------
+echo ""
+echo "=== Configuring HAProxy Check User ==="
+docker exec -e MYSQL_PWD="$ROOT_PASS" "$PRIMARY" mysql -u root -e "
+    CREATE USER IF NOT EXISTS 'haproxy_check'@'%';
+    FLUSH PRIVILEGES;
+"
+echo "✅ haproxy_check user created. HAProxy should now mark nodes as UP."
+
+echo ""
+echo "=== Primary status ==="
+# ... rest of your script ...
 
 echo ""
 echo "✅ Replication setup complete."
-echo "   Watch lag: docker exec mysql-replica1 mysql -prootpass -e \"SHOW REPLICA STATUS\G\" | grep Seconds_Behind"
