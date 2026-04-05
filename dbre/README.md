@@ -20,6 +20,7 @@ DBRE applies SRE principles to databases. Databases are the most critical and le
 | [Backup & Recovery](backup-recovery.md) | Backup strategies, point-in-time recovery, DR |
 | [Observability](observability.md) | Monitoring stack, exporters, alert hierarchy, Prometheus/Grafana, replication lag |
 | [HA & Failover](ha-failover.md) | ProxySQL routing, Orchestrator, failover runbooks, replica provisioning, MySQL upgrades |
+| [Load Testing & VM Optimization](load-testing.md) | sysbench, mysqlslap, InnoDB tuning, OS settings, cloud VM sizing |
 | [Scaling Databases](scaling.md) | Read replicas, sharding, connection pooling at scale |
 | [**Lab Runbook**](lab/runbook.md) | **Docker lab — try everything hands-on (MySQL + HAProxy + ProxySQL + replicas + backups)** |
 | [Best Practices](best-practices.md) | Do's and don'ts — schema design, queries, indexing, tools, naming |
