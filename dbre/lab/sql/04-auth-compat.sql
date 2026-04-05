@@ -18,14 +18,14 @@
 ALTER USER 'app'@'%' IDENTIFIED WITH mysql_native_password BY 'apppass';
 
 -- HAProxy health check — no password, must use native plugin
-ALTER USER 'haproxy_check'@'%'
+CREATE USER IF NOT EXISTS 'haproxy_check'@'%'
     IDENTIFIED WITH mysql_native_password BY ''
     PASSWORD EXPIRE NEVER;
 
 -- ProxySQL monitor user — used for backend health checks (ping/connect)
 -- Must be mysql_native_password; caching_sha2 causes "handshake out of context"
 CREATE USER IF NOT EXISTS 'monitor'@'%'
-    IDENTIFIED WITH mysql_native_password BY 'monitorpass';
-GRANT USAGE ON *.* TO 'monitor'@'%';
+    IDENTIFIED WITH mysql_native_password BY 'monitorpass'
+    PASSWORD EXPIRE NEVER;
 
 FLUSH PRIVILEGES;
