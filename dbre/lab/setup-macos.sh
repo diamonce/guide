@@ -62,7 +62,7 @@ else
   ok "Homebrew $(brew --version | head -1)"
 fi
 
-brew update --quiet
+#brew update --quiet
 
 # ─────────────────────────────────────────────────────────────────────────────
 header "2. Docker Desktop"
