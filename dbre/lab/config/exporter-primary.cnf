@@ -1,0 +1,7 @@
+# mysqld_exporter credentials — primary
+# v0.15+ reads --config.my-cnf instead of DATA_SOURCE_NAME
+[client]
+user     = monitoring
+password = monitorpass
+host     = mysql-primary
+port     = 3306

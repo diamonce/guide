@@ -60,6 +60,7 @@ services:
       - ./sql/init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
       - ./sql/create-repl-user.sql:/docker-entrypoint-initdb.d/02-repl.sql:ro
       - ./sql/create-monitoring-user.sql:/docker-entrypoint-initdb.d/03-monitoring.sql:ro
+      - ./sql/04-auth-compat.sql:/docker-entrypoint-initdb.d/04-auth-compat.sql:ro
       - backup-data:/backup
     networks:
       db-net:

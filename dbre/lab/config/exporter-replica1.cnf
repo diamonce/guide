@@ -1,0 +1,6 @@
+# mysqld_exporter credentials — replica1
+[client]
+user     = monitoring
+password = monitorpass
+host     = mysql-replica1
+port     = 3306
