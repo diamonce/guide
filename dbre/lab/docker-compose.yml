@@ -148,7 +148,7 @@ services:
   # ProxySQL — smart read/write split + pooling
   # ─────────────────────────────────────────
   proxysql:
-    image: proxysql/proxysql:2.5.5
+    image: proxysql/proxysql:2.7.1
     container_name: proxysql
     restart: unless-stopped
     ports:
