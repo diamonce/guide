@@ -126,6 +126,33 @@ services:
       retries: 10
 
   # ─────────────────────────────────────────
+  # MySQL 5.7 — migration source (old version)
+  # Used by scripts/11-mysql5-to-8-migration.sh
+  # ─────────────────────────────────────────
+  mysql57:
+    image: mysql:5.7
+    container_name: mysql57
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpass
+      MYSQL_DATABASE: shopdb
+      MYSQL_USER: app
+      MYSQL_PASSWORD: apppass
+    ports:
+      - "3315:3306"
+    volumes:
+      - ./config/mysql57.cnf:/etc/mysql/conf.d/replication.cnf:ro
+      - ./sql/init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+      - ./sql/create-repl-user.sql:/docker-entrypoint-initdb.d/02-repl.sql:ro
+    networks:
+      - db-net
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-prootpass"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # ─────────────────────────────────────────
   # HAProxy — write port 3306, read port 3307
   # ─────────────────────────────────────────
   haproxy:
@@ -184,7 +211,8 @@ services:
   # Percona Toolkit + backup tools
   # ─────────────────────────────────────────
   toolkit:
-    image: percona/percona-toolkit:3.5
+    build: ./docker/toolkit
+    image: dbre-lab/toolkit:local
     container_name: toolkit
     entrypoint: sleep infinity
     volumes:

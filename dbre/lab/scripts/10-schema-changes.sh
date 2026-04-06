@@ -29,15 +29,15 @@ mysql_cmd $DB -e "
     ALTER TABLE \`$TABLE\` DROP COLUMN IF EXISTS notes;
 
     -- Remove indexes added by gh-ost / INPLACE demos
-    DROP INDEX IF EXISTS idx_gh_total    ON \`$TABLE\`;
-    DROP INDEX IF EXISTS idx_test_status ON \`$TABLE\`;
+    DROP INDEX IF EXISTS idx_gh_unit_price ON \`order_items\`;
+    DROP INDEX IF EXISTS idx_test_status   ON \`$TABLE\`;
 
     -- Remove old shadow table left by pt-osc --no-drop-old-table
     DROP TABLE IF EXISTS \`_${TABLE}_old\`;
 
     -- Remove ghost / old tables left by gh-ost
-    DROP TABLE IF EXISTS \`_${TABLE}_ghc\`;
-    DROP TABLE IF EXISTS \`_${TABLE}_gho\`;
+    DROP TABLE IF EXISTS \`_order_items_ghc\`;
+    DROP TABLE IF EXISTS \`_order_items_gho\`;
 " 2>/dev/null || true
 echo "✅ Reset complete"
 
@@ -167,64 +167,59 @@ mysql_cmd $DB -e "DROP TABLE IF EXISTS _${TABLE}_old;" 2>/dev/null || true
 # ─── Step 5: gh-ost ──────────────────────────────────────────────────────────
 header "5. gh-ost — ADD INDEX via ghost table (binlog-based, no triggers)"
 
-echo "gh-ost requires network access from the host machine to the primary."
-echo "Using: docker run --network dbre-lab_db-net"
+echo "gh-ost runs inside the toolkit container (same Docker network as primary)"
 
-# Create a postpone flag file to control cutover manually
 POSTPONE_FILE=/tmp/gh-ost-lab.postpone
+SOCK_FILE=/tmp/gh-ost-lab.sock
+
+# Create postpone flag inside toolkit container
+docker exec toolkit touch $POSTPONE_FILE
 
 echo
-echo "→ Running gh-ost with postponed cutover (touch $POSTPONE_FILE to delay swap)"
-touch $POSTPONE_FILE
-
-docker run --rm --network dbre-lab_db-net \
-  -v /tmp:/tmp \
-  skeema/gh-ost:latest \
+echo "→ Running gh-ost with postponed cutover"
+docker exec toolkit gh-ost \
     --host=mysql-primary \
     --port=3306 \
     --user=$USER \
     --password=$PASS \
     --database=$DB \
-    --table=$TABLE \
-    --alter="ADD INDEX idx_gh_total (total)" \
+    --table=order_items \
+    --alter="ADD INDEX idx_gh_unit_price (unit_price)" \
     --chunk-size=500 \
     --max-lag-millis=2000 \
     --max-load="Threads_running=20" \
     --critical-load="Threads_running=50" \
-    --serve-socket-file=/tmp/gh-ost-lab.sock \
+    --serve-socket-file=$SOCK_FILE \
     --postpone-cut-over-flag-file=$POSTPONE_FILE \
     --ok-to-drop-table \
     --initially-drop-ghost-table \
     --initially-drop-socket-file \
+    --assume-rbr \
     --verbose \
     --execute &
 
 GH_OST_PID=$!
+echo "gh-ost running in background (PID $GH_OST_PID)"
+echo "Control commands:"
+echo "  Status:  docker exec toolkit sh -c 'echo status | nc -U $SOCK_FILE'"
+echo "  Pause:   docker exec toolkit sh -c 'echo throttle | nc -U $SOCK_FILE'"
+echo "  Resume:  docker exec toolkit sh -c 'echo no-throttle | nc -U $SOCK_FILE'"
 
-echo "gh-ost running (PID $GH_OST_PID)"
-echo "Control commands while running:"
-echo "  Pause:   echo throttle | nc -U /tmp/gh-ost-lab.sock"
-echo "  Resume:  echo no-throttle | nc -U /tmp/gh-ost-lab.sock"
-echo "  Status:  echo status | nc -U /tmp/gh-ost-lab.sock"
-echo "  Abort:   echo panic | nc -U /tmp/gh-ost-lab.sock"
 echo
-echo "Waiting for copy to complete..."
-sleep 5
+echo "Waiting for row copy to start..."
+sleep 8
 
-# Check status
-if [ -S /tmp/gh-ost-lab.sock ]; then
-  echo status | nc -U /tmp/gh-ost-lab.sock 2>/dev/null || true
-fi
+docker exec toolkit sh -c "echo status | nc -U $SOCK_FILE 2>/dev/null" || true
 
-# Allow cutover
+echo
 echo "Releasing postpone flag → cutover will proceed"
-rm -f $POSTPONE_FILE
+docker exec toolkit rm -f $POSTPONE_FILE
 
 wait $GH_OST_PID || true
 
 echo
 echo "→ Verify index was added"
-mysql_cmd $DB -e "SHOW INDEX FROM $TABLE WHERE Key_name = 'idx_gh_total';"
+mysql_cmd $DB -e "SHOW INDEX FROM order_items WHERE Key_name = 'idx_gh_unit_price';"
 
 # ─── Step 6: Monitor replication lag during a migration ──────────────────────
 header "6. What to watch — replication lag during change"
@@ -249,8 +244,13 @@ WHERE SCHEMA_NAME = '$DB'
 ORDER BY SUM_TIMER_WAIT DESC
 LIMIT 10;" 2>/dev/null || true
 
-header "Done. Summary of changes made to $TABLE:"
-mysql_cmd $DB -e "SHOW CREATE TABLE $TABLE\G" | grep -E "notes|idx_gh"
+header "Done. Summary of changes made to $TABLE and order_items:"
+echo "--- $TABLE columns and indexes ---"
+mysql_cmd $DB -e "SHOW COLUMNS FROM $TABLE;" 2>/dev/null
+mysql_cmd $DB -e "SHOW INDEX FROM $TABLE;" 2>/dev/null | awk '{print $1, $3, $5}'
+echo ""
+echo "--- order_items indexes ---"
+mysql_cmd $DB -e "SHOW INDEX FROM order_items;" 2>/dev/null | awk '{print $1, $3, $5}'
 
 echo
 echo "Open Grafana http://localhost:3000 → MySQL Processlist → Top Queries"

@@ -16,17 +16,61 @@ DBRE applies SRE principles to databases. Databases are the most critical and le
 | [Anti-Patterns](antipatterns.md) | Design and query anti-patterns (sqlcheck reference) |
 | [Security](security.md) | Access control, encryption, secrets management, audit logging, PII/compliance |
 | [Performance Tuning](performance.md) | Query optimization, indexes, execution plans |
-| [Migrations & Schema Changes](migrations.md) | Safe schema changes, zero-downtime migrations, rollback strategies |
-| [Backup & Recovery](backup-recovery.md) | Backup strategies, point-in-time recovery, DR |
-| [Observability](observability.md) | Monitoring stack, exporters, alert hierarchy, Prometheus/Grafana, replication lag |
-| [HA & Failover](ha-failover.md) | ProxySQL routing, Orchestrator, failover runbooks, replica provisioning, MySQL upgrades |
-| [Load Testing & VM Optimization](load-testing.md) | sysbench, mysqlslap, InnoDB tuning, OS settings, cloud VM sizing |
-| [Scaling Databases](scaling.md) | Read replicas, sharding, connection pooling at scale |
-| [**Lab Runbook**](lab/runbook.md) | **Docker lab — try everything hands-on (MySQL + HAProxy + ProxySQL + replicas + backups)** |
-| [Best Practices](best-practices.md) | Do's and don'ts — schema design, queries, indexing, tools, naming |
+| [Migrations & Schema Changes](migrations.md) | INSTANT/INPLACE/pt-osc/gh-ost selection, duration estimation, zero-downtime execution |
+| [Backup & Recovery](backup-recovery.md) | mysqldump, XtraBackup, mydumper, PITR with GTIDs, zero-downtime table swap |
+| [Observability](observability.md) | Prometheus + mysqld_exporter, Grafana dashboards, alert hierarchy, replication lag |
+| [HA & Failover](ha-failover.md) | HAProxy, ProxySQL routing, replica promotion, failover runbooks |
+| [Load Testing & VM Optimization](load-testing.md) | sysbench, mysqlslap, InnoDB tuning, OS settings, GCP VM sizing |
+| [Scaling Databases](scaling.md) | Read replicas, ProxySQL connection pooling, sharding |
+| [**Lab**](lab/runbook.md) | **Hands-on Docker lab — everything below in a running cluster** |
+| [Best Practices](best-practices.md) | Schema design, queries, indexing, tools, naming conventions |
 | [External Links](external-links.md) | PostgreSQL docs, Don't Do This wiki, sqlblog bad habits, modern-sql |
 | [**Postmortem Template**](postmortem-template.md) | **Operational failures — outage, failover, replication break, backup failure** |
 | [**DEA Template**](dea-template.md) | **Defect Escape Analysis — defects that slipped through quality gates to production** |
+
+---
+
+## Lab
+
+The lab is a self-contained Docker environment covering every topic end-to-end. No cloud account needed.
+
+```
+mysql-primary ──GTID──► mysql-replica1
+              └─GTID──► mysql-replica2
+
+HAProxy    :3306 writes → primary
+           :3307 reads  → replicas (round-robin)
+
+ProxySQL   :6033 auto read/write split by query pattern
+           :6032 admin (MySQL protocol)
+           :6080 web UI (HTTPS, Digest auth)
+
+Monitoring  mysqld_exporter ×3 → Prometheus :9090 → Grafana :3000
+            MySQL Overview dashboard   — time-series metrics
+            MySQL Processlist dashboard — live processlist, top queries, locks
+
+toolkit container  pt-*, gh-ost, xtrabackup, mydumper
+mysql-tools        mysqlbinlog, full MySQL 8.0.23 client suite
+mysql57            MySQL 5.7 source for migration lab
+```
+
+### Lab scripts
+
+| Script | Topic |
+|--------|-------|
+| `01-setup-replication.sh` | GTID replication, auth-compat for ProxySQL + HAProxy |
+| `02-test-replication.sh` | Verify replication, lag, read-only enforcement |
+| `03-test-haproxy.sh` | Static read/write split, health checks, failover |
+| `04-test-proxysql.sh` | Query-aware routing, admin interface, web UI |
+| `05-backups.sh` | mysqldump, restore, PITR walkthrough, RENAME TABLE swap |
+| `06-fast-backups.sh` | XtraBackup (full + incremental), mydumper, snapshot approach |
+| `07-failover.sh` | Crash simulation, replica promotion, re-topology |
+| `08-parallel-writes.sh` | Lock contention, deadlocks, INNODB STATUS |
+| `09-percona-toolkit.sh` | pt-mysql-summary, pt-duplicate-key-checker, pt-table-checksum, pt-table-sync, pt-osc, pt-query-digest |
+| `10-schema-changes.sh` | INSTANT/INPLACE dry runs, pt-osc, gh-ost with postponed cutover |
+| `11-mysql5-to-8-migration.sh` | Zero-downtime major version upgrade via cross-version replication + ProxySQL cutover |
+
+**[→ Lab runbook](lab/runbook.md)** — full setup, commands, one-liners, tear down.
 
 ---
 
@@ -35,7 +79,7 @@ DBRE applies SRE principles to databases. Databases are the most critical and le
 ```
 [B] Database Landscape → Fundamentals → SQL Best Practices → Backup & Recovery → Security
 [I] Performance Tuning → Migrations → Observability → HA & Failover → Best Practices
-[A] Scaling → Distributed databases → DB reliability engineering
+[A] Scaling → Load Testing → Lab (hands-on) → Postmortem practice
 ```
 
 ---
@@ -54,7 +98,7 @@ DBRE applies SRE principles to databases. Databases are the most critical and le
 - [sqlstyle-guide](../resources/sqlstyle-guide/README.md) — SQL style guide for consistent formatting
 - [data-engineer-handbook](../resources/data-engineer-handbook/README.md) — Data engineering context
 - [awesome-scalability](../resources/awesome-scalability/README.md) — DB scaling patterns
-- [atlassian-incident-handbook](../resources/atlassian-incident-handbook/postmortems.md) — Postmortem framework, Five Whys, blameless culture (DB postmortem reference)
+- [atlassian-incident-handbook](../resources/atlassian-incident-handbook/postmortems.md) — Postmortem framework, Five Whys, blameless culture
 
 ---
 

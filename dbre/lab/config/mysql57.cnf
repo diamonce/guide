@@ -1,0 +1,11 @@
+[mysqld]
+server-id          = 57
+log-bin            = mysql-bin
+binlog-format      = ROW
+gtid-mode          = ON
+enforce-gtid-consistency = ON
+log-slave-updates  = ON
+
+# Compatibility — produce output MySQL 8 can consume
+binlog-row-image   = FULL
+expire-logs-days   = 7
