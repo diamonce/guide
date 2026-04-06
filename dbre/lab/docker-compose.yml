@@ -164,6 +164,23 @@ services:
         condition: service_healthy
 
   # ─────────────────────────────────────────
+  # MySQL client tools (mysqlbinlog, etc.)
+  # mysql:8.0.23 includes the full client suite
+  # ─────────────────────────────────────────
+  mysql-tools:
+    image: mysql:8.0.23
+    container_name: mysql-tools
+    entrypoint: sleep infinity
+    volumes:
+      - backup-data:/backup
+      - ./scripts:/scripts:ro
+    networks:
+      - db-net
+    depends_on:
+      mysql-primary:
+        condition: service_healthy
+
+  # ─────────────────────────────────────────
   # Percona Toolkit + backup tools
   # ─────────────────────────────────────────
   toolkit:

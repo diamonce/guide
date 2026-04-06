@@ -79,7 +79,7 @@ echo "=== Reloading ProxySQL user list ==="
 # auth-compat runs at MySQL init time (sql/04-auth-compat.sql), so app user
 # already has mysql_native_password by the time ProxySQL starts.
 # This reload picks up any runtime changes.
-docker exec -e MYSQL_PWD="adminpass" proxysql mysql -h 127.0.0.1 -P 6032 -u admin -e "
+MYSQL_PWD="radminpass" mysql -h 127.0.0.1 -P 6032 -u radmin -e "
     LOAD MYSQL USERS TO RUNTIME;
     SAVE MYSQL USERS TO DISK;
 " 2>/dev/null && echo "✅ ProxySQL users reloaded" || echo "⚠  ProxySQL reload skipped (may not be ready yet)"
