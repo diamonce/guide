@@ -22,8 +22,33 @@ mysql_cmd() { mysql -h $PRIMARY -P $PORT -u$USER -p$PASS --connect-timeout=5 2>/
 
 header() { echo; echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"; echo "  $1"; echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"; }
 
+# ─── Reset: undo everything this script creates so it can be re-run ───────────
+header "0a. Reset — cleaning up previous run artifacts"
+mysql_cmd $DB -e "
+    -- Remove columns added by pt-osc / INSTANT demos
+    ALTER TABLE \`$TABLE\` DROP COLUMN IF EXISTS notes;
+
+    -- Remove indexes added by gh-ost / INPLACE demos
+    DROP INDEX IF EXISTS idx_gh_total    ON \`$TABLE\`;
+    DROP INDEX IF EXISTS idx_test_status ON \`$TABLE\`;
+
+    -- Remove old shadow table left by pt-osc --no-drop-old-table
+    DROP TABLE IF EXISTS \`_${TABLE}_old\`;
+
+    -- Remove ghost / old tables left by gh-ost
+    DROP TABLE IF EXISTS \`_${TABLE}_ghc\`;
+    DROP TABLE IF EXISTS \`_${TABLE}_gho\`;
+" 2>/dev/null || true
+echo "✅ Reset complete"
+
 # ─── Seed extra rows so migrations take a measurable amount of time ───────────
-header "0. Seeding extra rows into orders (5000 rows)"
+header "0b. Seeding extra rows into orders (5000 rows)"
+mysql_cmd $DB -e "
+    SET foreign_key_checks=0;
+    TRUNCATE TABLE order_items;
+    TRUNCATE TABLE orders;
+    SET foreign_key_checks=1;"
+
 mysql_cmd $DB <<'SQL'
 DROP PROCEDURE IF EXISTS seed_orders;
 DELIMITER //
@@ -84,16 +109,12 @@ mysql_cmd $DB -e "ALTER TABLE $TABLE MODIFY COLUMN status VARCHAR(30), ALGORITHM
 
 # ─── Step 3: Duration estimation ─────────────────────────────────────────────
 header "3. Write rate measurement (10-second window)"
-mysql_cmd -e "
-  SELECT variable_value INTO @before FROM performance_schema.global_status
-  WHERE variable_name = 'Innodb_rows_inserted';"
+BEFORE=$(mysql_cmd -sN -e "SELECT variable_value FROM performance_schema.global_status WHERE variable_name = 'Innodb_rows_inserted';")
 echo "Measuring inserts for 10 seconds..."
 sleep 10
-mysql_cmd -e "
-  SELECT (variable_value - @before) AS inserts_in_10s,
-         ROUND((variable_value - @before) * 6, 0) AS est_inserts_per_min
-  FROM performance_schema.global_status
-  WHERE variable_name = 'Innodb_rows_inserted';"
+AFTER=$(mysql_cmd -sN -e "SELECT variable_value FROM performance_schema.global_status WHERE variable_name = 'Innodb_rows_inserted';")
+DELTA=$(( AFTER - BEFORE ))
+echo "inserts_in_10s: $DELTA  |  est_inserts_per_min: $(( DELTA * 6 ))"
 
 # ─── Step 4: pt-online-schema-change ─────────────────────────────────────────
 header "4. pt-online-schema-change — ADD COLUMN via toolkit container"
@@ -102,22 +123,23 @@ echo "→ Dry run first (no changes)"
 docker exec toolkit pt-online-schema-change \
   --host=mysql-primary \
   --user=$USER --password=$PASS \
-  --database=$DB \
-  --table=$TABLE \
   --alter="ADD COLUMN notes TEXT" \
+  --alter-foreign-keys-method=auto \
+  --recursion-method=none \
   --chunk-size=500 \
   --max-lag=3 \
   --dry-run \
-  2>&1 | grep -E "Dry run|Would|chunk|table|trigger|error" || true
+  D=$DB,t=$TABLE \
+  2>&1 | grep -E "Dry run|Would|chunk|table|trigger|slave|error|warning" || true
 
 echo
 echo "→ Actual run (small table — will be fast)"
 docker exec toolkit pt-online-schema-change \
   --host=mysql-primary \
   --user=$USER --password=$PASS \
-  --database=$DB \
-  --table=$TABLE \
   --alter="ADD COLUMN notes TEXT" \
+  --alter-foreign-keys-method=auto \
+  --recursion-method=none \
   --chunk-size=500 \
   --chunk-time=0.5 \
   --max-lag=5 \
@@ -126,7 +148,9 @@ docker exec toolkit pt-online-schema-change \
   --critical-load="Threads_running=50" \
   --set-vars="lock_wait_timeout=5" \
   --no-drop-old-table \
-  --execute 2>&1 | tail -20
+  --execute \
+  D=$DB,t=$TABLE \
+  2>&1 | tail -20
 
 echo
 echo "→ Verify column was added"
