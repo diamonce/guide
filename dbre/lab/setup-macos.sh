@@ -176,6 +176,7 @@ header "8. Supporting utilities"
 brew_install netcat nc          # nc — gh-ost socket control (echo throttle | nc -U ...)
 brew_install pv pv              # pipe viewer — progress bar for mysqldump restores
 brew_install jq jq              # JSON processing — docker API, gh-ost output
+brew_install redis redis-cli    # redis-cli — host-side Valkey benchmark (scripts/13, 14)
 
 # moreutils provides ts (timestamp), sponge, etc. — useful for log monitoring
 brew install moreutils 2>/dev/null && ok "moreutils installed" || true
@@ -238,6 +239,7 @@ print_version "fio"                     "fio"
 print_version "nc (netcat)"             "nc"
 print_version "pv"                      "pv"
 print_version "jq"                      "jq"
+print_version "redis-cli"               "redis-cli"
 
 echo
 info "xtrabackup: runs in 'toolkit' Docker container (no macOS binary)"

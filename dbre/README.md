@@ -116,6 +116,7 @@ The app must use a Redis client and implement cache-aside logic (check Valkey �
 | `11-mysql5-to-8-migration.sh` | Zero-downtime major version upgrade via cross-version replication + ProxySQL cutover |
 | `12-caching.sh` | ProxySQL built-in query cache (transparent) + Valkey cache-aside pattern (requires Redis client) |
 | `13-cache-benchmark.sh` | Performance comparison: Direct MySQL vs ProxySQL cache (cold/warm) vs Valkey HGET |
+| `14-load-simulation.sh` | Realistic load simulation: large dataset + background RPS to show cache value under pressure |
 
 **[→ Lab runbook](lab/runbook.md)** — full setup, commands, one-liners, tear down.
 

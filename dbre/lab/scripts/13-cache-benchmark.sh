@@ -65,7 +65,7 @@ worker_mysql_direct() {
     while [ "$(date +%s)" -lt "$end" ]; do
         local t0 t1
         t0=$(date +%s%N)
-        docker exec mysql-replica1 mysql -u root -prootpass shopdb -sN \
+        MYSQL_PWD=rootpass mysql -h 127.0.0.1 -P 3311 -u root shopdb -sN \
             -e "SELECT id, sku, name, price FROM products ORDER BY id;" \
             2>/dev/null > /dev/null
         t1=$(date +%s%N)
@@ -78,7 +78,7 @@ worker_proxysql() {
     while [ "$(date +%s)" -lt "$end" ]; do
         local t0 t1
         t0=$(date +%s%N)
-        docker exec proxysql mysql -u app -papppass -h 127.0.0.1 -P 6033 shopdb -sN \
+        MYSQL_PWD=apppass mysql -h 127.0.0.1 -P 6033 -u app shopdb -sN \
             -e "SELECT id, sku, name, price FROM products ORDER BY id;" \
             2>/dev/null > /dev/null
         t1=$(date +%s%N)
@@ -91,7 +91,7 @@ worker_valkey() {
     while [ "$(date +%s)" -lt "$end" ]; do
         local t0 t1
         t0=$(date +%s%N)
-        docker exec valkey valkey-cli HGET "product:1" name > /dev/null 2>&1
+        redis-cli -h 127.0.0.1 -p 6379 HGET "product:1" name > /dev/null 2>&1
         t1=$(date +%s%N)
         echo $(( (t1 - t0) / 1000000 )) >> "$outfile"
     done
@@ -135,7 +135,7 @@ for svc in mysql-primary mysql-replica1 proxysql valkey; do
     case "$svc" in
         mysql-*) docker exec "$svc" mysqladmin ping -u root -prootpass -s 2>/dev/null \
                      && echo "ok" || { echo "FAIL — start the cluster first"; exit 1; } ;;
-        proxysql) docker exec proxysql mysql -u admin -padminpass -h 127.0.0.1 -P 6032 \
+        proxysql) MYSQL_PWD=radminpass mysql -h 127.0.0.1 -P 6032 -uradmin \
                      -e "SELECT 1" --silent 2>/dev/null | grep -q 1 && echo "ok" || { echo "FAIL"; exit 1; } ;;
         valkey) docker exec valkey valkey-cli ping 2>/dev/null | grep -q PONG && echo "ok" || { echo "FAIL"; exit 1; } ;;
     esac
@@ -161,7 +161,7 @@ done
 echo "  Valkey keys: $(docker exec valkey valkey-cli DBSIZE 2>/dev/null)"
 
 # Reset ProxySQL stats baseline
-MYSQL_PWD=adminpass mysql -h 127.0.0.1 -P 6032 -uadmin \
+MYSQL_PWD=radminpass mysql -h 127.0.0.1 -P 6032 -uradmin \
     -e "SELECT * FROM stats_mysql_query_digest_reset;" 2>/dev/null > /dev/null || true
 
 # ── Path A: Direct MySQL (no cache) ───────────────────────────────────────────
@@ -172,7 +172,7 @@ A_STATS=$(stats "${REPORT_DIR}/A_all.txt")
 
 # ── Path B: ProxySQL cold ──────────────────────────────────────────────────────
 header "Path B — ProxySQL COLD (cache flushed, every query hits MySQL, ${DURATION}s)"
-MYSQL_PWD=adminpass mysql -h 127.0.0.1 -P 6032 -uadmin \
+MYSQL_PWD=radminpass mysql -h 127.0.0.1 -P 6032 -uradmin \
     -e "PROXYSQL FLUSH QUERY CACHE;" 2>/dev/null || true
 run_path "ProxySQL cold" worker_proxysql "${REPORT_DIR}/B"
 B_QPS=$(qps "${REPORT_DIR}/B_all.txt" "$DURATION")
@@ -182,7 +182,7 @@ B_STATS=$(stats "${REPORT_DIR}/B_all.txt")
 header "Path C — ProxySQL WARM (cache populated, served from RAM, ${DURATION}s)"
 # Pre-warm: send 3 queries to populate cache before workers start
 for _ in 1 2 3; do
-    docker exec proxysql mysql -u app -papppass -h 127.0.0.1 -P 6033 shopdb -sN \
+    MYSQL_PWD=apppass mysql -h 127.0.0.1 -P 6033 -u app shopdb -sN \
         -e "SELECT id, sku, name, price FROM products ORDER BY id;" \
         2>/dev/null > /dev/null
 done
@@ -202,7 +202,7 @@ set +e
 # ProxySQL cache stats via host mysql client (port 6032 exposed on host)
 # Use awk -F'\t' to handle tab-separated mysql output; no grep pipelines that
 # can return exit code 1 (empty match) and trip set -e.
-CACHE_RAW=$(MYSQL_PWD=adminpass mysql -h 127.0.0.1 -P 6032 -uadmin -sN \
+CACHE_RAW=$(MYSQL_PWD=radminpass mysql -h 127.0.0.1 -P 6032 -uradmin -sN \
     -e "SELECT Variable_Name, Variable_Value FROM stats_mysql_global
         WHERE Variable_Name IN (
             'Query_Cache_count_GET','Query_Cache_count_GET_OK',
@@ -249,9 +249,9 @@ cat <<HEADER
   Query   : SELECT id,sku,name,price FROM products ORDER BY id
 ════════════════════════════════════════════════════════════════════════
 
-  NOTE: Measurements include docker exec overhead (~1–3ms per call).
-  Absolute values are higher than a real app with persistent connections.
-  Relative ratios between paths are accurate.
+  NOTE: Each worker opens a new TCP connection per query (no connection pooling).
+  Absolute latency is higher than a persistent-connection app client.
+  Relative ratios between paths are accurate and show real cache benefit.
 
 ────────────────────────────────────────────────────────────────────────
   Path                         QPS      avg ms   p50    p95    p99
