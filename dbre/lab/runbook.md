@@ -622,25 +622,52 @@ Key metrics:
 ./scripts/13-cache-benchmark.sh
 ```
 
-Compares four data-access paths for the same query (`SELECT FROM products`):
+Compares four data-access paths for a `products LEFT JOIN order_items GROUP BY product` aggregate query.
+The script generates its own dataset (300 products, 50k+ order_items) on first run — skipped automatically if data already exists.
 
-| Path | Description | Expected latency |
-|------|-------------|-----------------|
-| A — Direct MySQL replica | Full SQL round-trip, no cache | 2–10 ms |
-| B — ProxySQL cold | Cache flushed, every query hits MySQL | 2–10 ms |
-| C — ProxySQL warm | Cache populated, ProxySQL serves from RAM | 0.1–1 ms |
-| D — Valkey HGET | Pure KV lookup, no SQL at all | 0.2–2 ms |
+**Observed results** (506 products, 200k order_items, 60s per path, 4 workers):
 
-Outputs per-path: count, avg ms, p50/p95/p99, QPS.  
-Then runs a **concurrent load test** with `WORKERS` parallel goroutines to measure throughput under contention.
+```
+Path                         QPS      avg ms   p50    p95    p99
+────────────────────────────────────────────────────────────────
+A: Direct MySQL replica       5.5     707ms    684    863    1151
+B: ProxySQL cold (miss)      85.3      39ms     33     63      98
+C: ProxySQL warm (hit)       83.6      40ms     36     59      82
+D: Valkey GET                168.3     15ms     13     29      46
+
+Speedup vs Direct MySQL
+  ProxySQL warm :  17.7x faster  (15.1x QPS)   — cache hit rate 99.7%
+  Valkey GET    :  46.7x faster  (30.5x QPS)   — cache hit rate 98.7%
+```
+
+**Why B (cold) ≈ C (warm)?**  
+After a cache flush, the first 4 queries (one per worker) miss and hit MySQL (~700ms each). Those 4 misses populate the cache within the first second. For the remaining 59 seconds all queries are cache hits. 4 misses / 5,121 total = 0.08% — invisible in the average. The "cold" run self-warms almost instantly because the TTL is 30 seconds. To observe the cold-miss penalty in isolation, run a single-worker test and watch the first query.
+
+**Access paths explained:**
+
+| Path | Route | Why this latency |
+|------|-------|-----------------|
+| A — Direct MySQL replica | Port 3311 → MySQL | Full JOIN scan of 200k order_items (~700ms) |
+| B — ProxySQL cold | HAProxy:6033 → ProxySQL → MySQL | Cache flushed; misses for first ~4 queries then 30s TTL |
+| C — ProxySQL warm | HAProxy:6033 → ProxySQL cache | Result served from ProxySQL RAM; TCP setup ~35ms dominates |
+| D — Valkey GET | redis-cli → HAProxy:6379 → Valkey | Pre-computed result string; fastest path |
+
+**Run options:**
 
 ```bash
-# Tune load
-ITERS=500 WORKERS=16 LOAD_ITERS=100 ./scripts/13-cache-benchmark.sh
+# Default: 60s per path, 4 workers, auto-generates data
+./scripts/13-cache-benchmark.sh
+
+# Skip seed if data already exists (from script 14 or previous run)
+SKIP_SEED=1 DURATION=120 WORKERS=8 ./scripts/13-cache-benchmark.sh
+
+# Build large dataset first, then benchmark
+./scripts/14-load-simulation.sh && SKIP_SEED=1 ./scripts/13-cache-benchmark.sh
 ```
 
 **Watch in Grafana** while the benchmark runs:
 - `Valkey Cache` dashboard → hit rate climbs from 0% → ~99% after warm-up
+- `ProxySQL` dashboard → Query Cache Hit Rate gauge, cache entries, command latency buckets
 - `MySQL Overview` → QPS on replicas drops once ProxySQL cache serves traffic
 
 ---
