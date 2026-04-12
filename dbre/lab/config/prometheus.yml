@@ -4,6 +4,18 @@ global:
 
 scrape_configs:
 
+  # ── Valkey / Redis nodes ─────────────────────────────────────────────────
+  - job_name: valkey
+    static_configs:
+      - targets:
+          - redis-exporter:9121
+        labels:
+          cluster: shopdb
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: valkey_instance
+        replacement: 'primary'
+
   # ── MySQL nodes (one exporter per node) ──────────────────────────────────
   - job_name: mysql
     static_configs:

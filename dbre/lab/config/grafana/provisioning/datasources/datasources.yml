@@ -26,6 +26,23 @@ datasources:
     secureJsonData:
       password: monitorpass
 
+  # ── ProxySQL Admin — stats_* tables via MySQL protocol on port 6032 ────────
+  # ProxySQL speaks MySQL protocol on its admin port. Grafana queries
+  # stats_mysql_global, stats_mysql_query_digest, stats_mysql_connection_pool.
+  # Note: ProxySQL stores current-state counters only, not time-series history.
+  - name: ProxySQL-Admin
+    type: mysql
+    uid: proxysql-admin
+    url: proxysql:6032
+    user: stats
+    jsonData:
+      database: stats
+      maxOpenConns: 3
+      maxIdleConns: 1
+      connMaxLifetime: 14400
+    secureJsonData:
+      password: statspass
+
   # ── MySQL Replica 1 — useful for comparing replica query patterns ─────────
   - name: MySQL-Replica1
     type: mysql

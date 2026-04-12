@@ -1,0 +1,385 @@
+{
+  "id": null,
+  "uid": "valkey-cache",
+  "title": "Valkey Cache",
+  "description": "Cache health, hit rate, memory, evictions, replication — sourced from redis-exporter via Prometheus. ProxySQL query cache stats: see text panel below.",
+  "tags": ["valkey", "cache", "dbre", "lab"],
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "10s",
+  "time": {"from": "now-1h", "to": "now"},
+  "graphTooltip": 1,
+  "editable": true,
+  "panels": [
+
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "Valkey Up",
+      "description": "1 = up, 0 = down",
+      "gridPos": {"x": 0, "y": 0, "w": 4, "h": 4},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [{"expr": "redis_up", "legendFormat": "valkey", "refId": "A"}],
+      "options": {
+        "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false},
+        "orientation": "horizontal",
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "textMode": "auto"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [{"type": "value", "options": {
+            "0": {"text": "DOWN", "color": "red", "index": 0},
+            "1": {"text": "UP",   "color": "green", "index": 1}
+          }}],
+          "thresholds": {"mode": "absolute", "steps": [
+            {"color": "red", "value": null},
+            {"color": "green", "value": 1}
+          ]},
+          "color": {"mode": "thresholds"}
+        }
+      }
+    },
+
+    {
+      "id": 2,
+      "type": "gauge",
+      "title": "Cache Hit Rate",
+      "description": "hits / (hits + misses) over last 2 min. <80% = investigate, <50% = cache not effective",
+      "gridPos": {"x": 4, "y": 0, "w": 5, "h": 4},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [{
+        "expr": "100 * rate(redis_keyspace_hits_total[2m]) / (rate(redis_keyspace_hits_total[2m]) + rate(redis_keyspace_misses_total[2m]) + 0.001)",
+        "legendFormat": "hit rate %",
+        "refId": "A"
+      }],
+      "options": {
+        "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false},
+        "showThresholdLabels": false,
+        "showThresholdMarkers": true
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "max": 100,
+          "thresholds": {"mode": "absolute", "steps": [
+            {"color": "red",    "value": null},
+            {"color": "orange", "value": 50},
+            {"color": "yellow", "value": 80},
+            {"color": "green",  "value": 95}
+          ]},
+          "color": {"mode": "thresholds"}
+        }
+      }
+    },
+
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "Memory Used",
+      "description": "Current RSS memory. Cap = 256 MB (allkeys-lru eviction kicks in at limit)",
+      "gridPos": {"x": 9, "y": 0, "w": 5, "h": 4},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [{"expr": "redis_memory_used_bytes", "legendFormat": "used", "refId": "A"}],
+      "options": {
+        "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false},
+        "colorMode": "background",
+        "graphMode": "area",
+        "orientation": "auto"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes",
+          "thresholds": {"mode": "absolute", "steps": [
+            {"color": "green",  "value": null},
+            {"color": "yellow", "value": 209715200},
+            {"color": "red",    "value": 251658240}
+          ]},
+          "color": {"mode": "thresholds"}
+        }
+      }
+    },
+
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "Total Keys",
+      "description": "Keys currently in all databases",
+      "gridPos": {"x": 14, "y": 0, "w": 4, "h": 4},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [{"expr": "sum(redis_db_keys)", "legendFormat": "keys", "refId": "A"}],
+      "options": {
+        "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false},
+        "colorMode": "value",
+        "graphMode": "area",
+        "orientation": "auto"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {"mode": "absolute", "steps": [{"color": "blue", "value": null}]},
+          "color": {"mode": "thresholds"}
+        }
+      }
+    },
+
+    {
+      "id": 5,
+      "type": "stat",
+      "title": "Evictions / s",
+      "description": "Rate of key evictions due to maxmemory policy. Sustained evictions = memory pressure — consider increasing limit or reducing TTLs",
+      "gridPos": {"x": 18, "y": 0, "w": 6, "h": 4},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [{"expr": "rate(redis_evicted_keys_total[2m])", "legendFormat": "evictions/s", "refId": "A"}],
+      "options": {
+        "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false},
+        "colorMode": "background",
+        "graphMode": "area",
+        "orientation": "auto"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops",
+          "thresholds": {"mode": "absolute", "steps": [
+            {"color": "green",  "value": null},
+            {"color": "yellow", "value": 1},
+            {"color": "red",    "value": 100}
+          ]},
+          "color": {"mode": "thresholds"}
+        }
+      }
+    },
+
+    {
+      "id": 6,
+      "type": "timeseries",
+      "title": "Cache Hits vs Misses (rate/s)",
+      "description": "Hits = served from cache (no DB). Misses = forwarded to database. Healthy ratio: hits >> misses after warm-up.",
+      "gridPos": {"x": 0, "y": 4, "w": 12, "h": 8},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [
+        {
+          "expr": "rate(redis_keyspace_hits_total[1m])",
+          "legendFormat": "hits/s",
+          "refId": "A"
+        },
+        {
+          "expr": "rate(redis_keyspace_misses_total[1m])",
+          "legendFormat": "misses/s",
+          "refId": "B"
+        }
+      ],
+      "options": {"tooltip": {"mode": "multi", "sort": "desc"}},
+      "fieldConfig": {
+        "defaults": {"unit": "ops"},
+        "overrides": [
+          {
+            "matcher": {"id": "byName", "options": "hits/s"},
+            "properties": [{"id": "color", "value": {"fixedColor": "green", "mode": "fixed"}}]
+          },
+          {
+            "matcher": {"id": "byName", "options": "misses/s"},
+            "properties": [{"id": "color", "value": {"fixedColor": "orange", "mode": "fixed"}}]
+          }
+        ]
+      }
+    },
+
+    {
+      "id": 7,
+      "type": "timeseries",
+      "title": "Commands Processed / s",
+      "description": "Total Valkey operations per second — GET, SET, HGET, EXPIRE, etc.",
+      "gridPos": {"x": 12, "y": 4, "w": 12, "h": 8},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [{
+        "expr": "rate(redis_commands_processed_total[1m])",
+        "legendFormat": "ops/s",
+        "refId": "A"
+      }],
+      "options": {"tooltip": {"mode": "multi", "sort": "desc"}},
+      "fieldConfig": {"defaults": {"unit": "ops"}}
+    },
+
+    {
+      "id": 8,
+      "type": "timeseries",
+      "title": "Hit Rate % over time",
+      "description": "Rolling 2-min hit rate. Dip = new query patterns or cold start after restart.",
+      "gridPos": {"x": 0, "y": 12, "w": 12, "h": 8},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [{
+        "expr": "100 * rate(redis_keyspace_hits_total[2m]) / (rate(redis_keyspace_hits_total[2m]) + rate(redis_keyspace_misses_total[2m]) + 0.001)",
+        "legendFormat": "hit rate %",
+        "refId": "A"
+      }],
+      "options": {"tooltip": {"mode": "multi", "sort": "desc"}},
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "max": 100,
+          "thresholds": {"mode": "absolute", "steps": [
+            {"color": "red",    "value": null},
+            {"color": "orange", "value": 50},
+            {"color": "yellow", "value": 80},
+            {"color": "green",  "value": 95}
+          ]},
+          "custom": {
+            "thresholdsStyle": {"mode": "area"}
+          }
+        }
+      }
+    },
+
+    {
+      "id": 9,
+      "type": "timeseries",
+      "title": "Memory Usage over time",
+      "description": "Used memory vs 256 MB cap. When used approaches cap, allkeys-lru starts evicting.",
+      "gridPos": {"x": 12, "y": 12, "w": 12, "h": 8},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [
+        {
+          "expr": "redis_memory_used_bytes",
+          "legendFormat": "used",
+          "refId": "A"
+        },
+        {
+          "expr": "redis_maxmemory_bytes",
+          "legendFormat": "cap (256MB)",
+          "refId": "B"
+        }
+      ],
+      "options": {"tooltip": {"mode": "multi", "sort": "desc"}},
+      "fieldConfig": {
+        "defaults": {"unit": "bytes"},
+        "overrides": [{
+          "matcher": {"id": "byName", "options": "cap (256MB)"},
+          "properties": [
+            {"id": "color", "value": {"fixedColor": "red", "mode": "fixed"}},
+            {"id": "custom.lineStyle", "value": {"dash": [10, 10], "fill": "dash"}},
+            {"id": "custom.lineWidth", "value": 1}
+          ]
+        }]
+      }
+    },
+
+    {
+      "id": 10,
+      "type": "stat",
+      "title": "Keys with TTL",
+      "description": "Expiring keys — these will auto-evict on TTL expiry (keyspace notification event)",
+      "gridPos": {"x": 0, "y": 20, "w": 5, "h": 4},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [{"expr": "sum(redis_db_keys_expiring)", "legendFormat": "expiring", "refId": "A"}],
+      "options": {
+        "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false},
+        "colorMode": "value",
+        "graphMode": "area",
+        "orientation": "auto"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {"mode": "absolute", "steps": [{"color": "blue", "value": null}]},
+          "color": {"mode": "thresholds"}
+        }
+      }
+    },
+
+    {
+      "id": 11,
+      "type": "stat",
+      "title": "Connected Clients",
+      "description": "Active Valkey client connections. Spike = connection leak or traffic burst.",
+      "gridPos": {"x": 5, "y": 20, "w": 5, "h": 4},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [{"expr": "redis_connected_clients", "legendFormat": "clients", "refId": "A"}],
+      "options": {
+        "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false},
+        "colorMode": "background",
+        "graphMode": "area",
+        "orientation": "auto"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {"mode": "absolute", "steps": [
+            {"color": "green",  "value": null},
+            {"color": "yellow", "value": 50},
+            {"color": "red",    "value": 100}
+          ]},
+          "color": {"mode": "thresholds"}
+        }
+      }
+    },
+
+    {
+      "id": 12,
+      "type": "stat",
+      "title": "Connected Replicas",
+      "description": "Number of replicas currently connected and replicating",
+      "gridPos": {"x": 10, "y": 20, "w": 5, "h": 4},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [{"expr": "redis_replication_connected_slaves", "legendFormat": "replicas", "refId": "A"}],
+      "options": {
+        "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false},
+        "colorMode": "background",
+        "graphMode": "none",
+        "orientation": "auto"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [{"type": "value", "options": {
+            "0": {"text": "0 — no replica", "color": "orange", "index": 0},
+            "1": {"text": "1 replica OK",   "color": "green",  "index": 1}
+          }}],
+          "thresholds": {"mode": "absolute", "steps": [
+            {"color": "orange", "value": null},
+            {"color": "green",  "value": 1}
+          ]},
+          "color": {"mode": "thresholds"}
+        }
+      }
+    },
+
+    {
+      "id": 13,
+      "type": "timeseries",
+      "title": "Evictions over time",
+      "description": "Keys evicted per second by LRU policy. Sustained pressure = tune maxmemory or TTLs.",
+      "gridPos": {"x": 15, "y": 20, "w": 9, "h": 4},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [{"expr": "rate(redis_evicted_keys_total[1m])", "legendFormat": "evictions/s", "refId": "A"}],
+      "options": {"tooltip": {"mode": "multi", "sort": "desc"}},
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops",
+          "custom": {"fillOpacity": 20},
+          "color": {"fixedColor": "orange", "mode": "fixed"}
+        }
+      }
+    },
+
+    {
+      "id": 14,
+      "type": "text",
+      "title": "ProxySQL Query Cache — how to check",
+      "description": "ProxySQL does not expose Prometheus metrics; query the admin interface directly",
+      "gridPos": {"x": 0, "y": 24, "w": 24, "h": 6},
+      "options": {
+        "mode": "markdown",
+        "content": "## ProxySQL built-in query cache\n\nProxySQL caches `SELECT … FROM products` (30 s TTL) and `SELECT COUNT(…)` (5 s TTL) transparently — the app sends normal SQL, ProxySQL serves from memory without touching MySQL.\n\nCheck via the ProxySQL admin port (6032):\n\n```sql\n-- Connect: mysql -u admin -padminpass -h 127.0.0.1 -P 6032\n\n-- Cache counters\nSELECT Variable_Name, Variable_Value\nFROM stats_mysql_global\nWHERE Variable_Name LIKE 'Query_Cache%';\n-- Query_Cache_count_GET     total lookups\n-- Query_Cache_count_GET_OK  hits   →  hit rate = GET_OK / GET\n-- Query_Cache_count_SET     misses (result stored)\n-- Query_Cache_Entries       current cached entries\n-- Query_Cache_Memory_bytes  memory used by cache\n\n-- Per-query breakdown (cache_entries > 0 = cached)\nSELECT hostgroup, digest_text, count_star, cache_entries, sum_time\nFROM stats_mysql_query_digest\nWHERE digest_text LIKE '%products%' OR digest_text LIKE '%COUNT%'\nORDER BY count_star DESC LIMIT 10;\n\n-- Flush cache without restart\nPROXYSQL FLUSH QUERY CACHE;\n```\n\nOr from the terminal: `docker exec proxysql mysql -u admin -padminpass -h 127.0.0.1 -P 6032 -e \"SELECT * FROM stats_mysql_global WHERE Variable_Name LIKE 'Query_Cache%';\"`"
+      }
+    }
+
+  ],
+
+  "templating": {"list": []},
+  "annotations": {"list": []},
+  "links": [
+    {"title": "MySQL Overview",    "url": "/d/mysql-overview",    "type": "link", "targetBlank": false},
+    {"title": "MySQL Processlist", "url": "/d/mysql-processlist", "type": "link", "targetBlank": false}
+  ]
+}

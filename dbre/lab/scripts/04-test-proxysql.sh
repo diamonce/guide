@@ -33,4 +33,7 @@ MYSQL_PWD="radminpass" mysql -h 127.0.0.1 -P 6032 -uradmin \
 echo ""
 echo "=== Query routing breakdown ==="
 MYSQL_PWD="radminpass" mysql -h 127.0.0.1 -P 6032 -uradmin \
-    -e "SELECT rule_id, hits, destination_hostgroup, match_pattern FROM stats_mysql_query_rules;"
+    -e "SELECT s.rule_id, s.hits, r.destination_hostgroup, r.cache_ttl, r.match_pattern
+        FROM stats_mysql_query_rules s
+        JOIN mysql_query_rules r USING (rule_id)
+        ORDER BY s.rule_id;"

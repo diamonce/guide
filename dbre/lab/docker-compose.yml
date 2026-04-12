@@ -1,4 +1,3 @@
-version: "3.8"
 
 # Architecture:
 #
@@ -37,6 +36,9 @@ volumes:
   backup-data:
   prometheus-data:
   grafana-data:
+  valkey-data:
+  valkey-replica-data:
+  proxysql2-data:
 
 services:
 
@@ -128,9 +130,17 @@ services:
   # ─────────────────────────────────────────
   # MySQL 5.7 — migration source (old version)
   # Used by scripts/11-mysql5-to-8-migration.sh
+  #
+  # NOT started by default — opt-in via profile:
+  #   docker compose --profile migration up -d mysql57
+  #
+  # mysql:5.7 has no ARM64 image. On Apple Silicon, Docker Desktop must have
+  # "Use Rosetta for x86_64/amd64 emulation" enabled (Settings → General).
   # ─────────────────────────────────────────
   mysql57:
     image: mysql:5.7
+    platform: linux/amd64
+    profiles: [migration]
     container_name: mysql57
     restart: unless-stopped
     environment:
@@ -153,6 +163,72 @@ services:
       retries: 10
 
   # ─────────────────────────────────────────
+  # Valkey PRIMARY — Redis-compatible cache
+  # App connects via HAProxy :6379 (writes) or :6380 (reads)
+  # Never connect directly — use HAProxy for topology transparency.
+  # ─────────────────────────────────────────
+  valkey:
+    image: valkey/valkey:8
+    container_name: valkey
+    restart: unless-stopped
+    # No host port — app MUST go through HAProxy (:6379 writes, :6380 reads).
+    # For direct debugging: docker exec valkey valkey-cli ping
+    volumes:
+      - valkey-data:/data
+      - ./config/valkey.conf:/etc/valkey/valkey.conf:ro
+    command: valkey-server /etc/valkey/valkey.conf
+    networks:
+      - db-net
+    healthcheck:
+      test: ["CMD", "valkey-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  # ─────────────────────────────────────────
+  # Valkey REPLICA — read-only replica
+  # Replicates from valkey primary via RESP protocol.
+  # HAProxy :6380 routes read traffic here.
+  # ─────────────────────────────────────────
+  valkey-replica:
+    image: valkey/valkey:8
+    container_name: valkey-replica
+    restart: unless-stopped
+    volumes:
+      - valkey-replica-data:/data
+      - ./config/valkey-replica.conf:/etc/valkey/valkey.conf:ro
+    command: valkey-server /etc/valkey/valkey.conf
+    networks:
+      - db-net
+    depends_on:
+      valkey:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "valkey-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  # ─────────────────────────────────────────
+  # Redis Exporter — exposes Valkey metrics
+  # Prometheus scrapes :9121/metrics
+  # Metrics: hits, misses, evictions, memory, connected clients
+  # ─────────────────────────────────────────
+  redis-exporter:
+    image: oliver006/redis_exporter:v1.61.0
+    container_name: redis-exporter
+    restart: unless-stopped
+    environment:
+      REDIS_ADDR: "redis://valkey:6379"
+    ports:
+      - "9121:9121"
+    networks:
+      - db-net
+    depends_on:
+      valkey:
+        condition: service_healthy
+
+  # ─────────────────────────────────────────
   # HAProxy — write port 3306, read port 3307
   # ─────────────────────────────────────────
   haproxy:
@@ -160,9 +236,12 @@ services:
     container_name: haproxy
     restart: unless-stopped
     ports:
-      - "3306:3306"   # writes → primary
-      - "3307:3307"   # reads  → replicas
-      - "8404:8404"   # stats UI
+      - "3306:3306"   # MySQL writes → primary
+      - "3307:3307"   # MySQL reads  → replicas
+      - "6033:6033"   # ProxySQL cluster (app endpoint — routes to node-1 or node-2)
+      - "6379:6379"   # Valkey writes → primary  (app endpoint)
+      - "6380:6380"   # Valkey reads  → replica  (app endpoint)
+      - "8404:8404"   # HAProxy stats UI
     volumes:
       - ./config/haproxy.cfg:/usr/local/etc/haproxy/haproxy.cfg:ro
     networks:
@@ -170,18 +249,28 @@ services:
     depends_on:
       mysql-primary:
         condition: service_healthy
+      valkey:
+        condition: service_healthy
+      proxysql:
+        condition: service_started
+      proxysql2:
+        condition: service_started
 
   # ─────────────────────────────────────────
-  # ProxySQL — smart read/write split + pooling
+  # ProxySQL NODE-1 — read/write split + cluster node
+  #
+  # App MUST connect via HAProxy :6033, not directly to this port.
+  # Node-1 and node-2 sync config automatically via ProxySQL Cluster.
+  # If node-1 crashes, HAProxy detects it in ~6s and routes to node-2.
   # ─────────────────────────────────────────
   proxysql:
-    image: proxysql/proxysql:2.7.1
+    image: proxysql/proxysql:latest
     container_name: proxysql
     restart: unless-stopped
     ports:
-      - "6033:6033"   # MySQL protocol (app connects here)
-      - "6032:6032"   # admin interface
-      - "6080:6080"   # HTTP web UI (http://localhost:6080/)
+      # No host port for 6033 — app uses HAProxy :6033, not this node directly.
+      - "6032:6032"   # admin interface  (direct admin access)
+      - "6080:6080"   # web UI           (http://localhost:6080)
     volumes:
       - ./config/proxysql.cnf:/etc/proxysql.cnf:ro
     networks:
@@ -191,11 +280,32 @@ services:
         condition: service_healthy
 
   # ─────────────────────────────────────────
+  # ProxySQL NODE-2 — cluster peer of node-1
+  # Same config file — proxysql_servers lists both nodes so each discovers
+  # the other on startup and syncs mysql_servers/users/query_rules.
+  # ─────────────────────────────────────────
+  proxysql2:
+    image: proxysql/proxysql:latest
+    container_name: proxysql2
+    restart: unless-stopped
+    ports:
+      - "6034:6032"   # admin interface  (direct admin access, mapped to 6034 on host)
+      - "6081:6080"   # web UI           (http://localhost:6081)
+    volumes:
+      - ./config/proxysql.cnf:/etc/proxysql.cnf:ro
+      - proxysql2-data:/var/lib/proxysql   # separate datadir — each node owns its SQLite DB
+    networks:
+      - db-net
+    depends_on:
+      mysql-primary:
+        condition: service_healthy
+
+  # ─────────────────────────────────────────
   # MySQL client tools (mysqlbinlog, etc.)
-  # mysql:8.0.23 includes the full client suite
+  # mysql:8.0 includes the full client suite (mysqlbinlog, mysqldump, etc.)
   # ─────────────────────────────────────────
   mysql-tools:
-    image: mysql:8.0.23
+    image: mysql:8.0   # 8.0.23 has no ARM64 image; any 8.0.28+ does
     container_name: mysql-tools
     entrypoint: sleep infinity
     volumes:

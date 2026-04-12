@@ -14,23 +14,36 @@ Everything from the DBRE docs, hands-on. Docker-based, runs locally, no cloud ne
       ├── HAProxy :3306 ──────────────► mysql-primary   (writes, server_id=1)
       │           :3307 ──► replica1                    (reads, round-robin)
       │                └──► replica2
+      │           :6379 ──────────────► valkey           (cache writes)
+      │           :6380 ──────────────► valkey-replica   (cache reads)
       │
-      └── ProxySQL :6033 ──► auto read/write split
-                  :6032    admin interface (MySQL protocol)
-                  :6080    web UI (HTTPS, Digest auth)
+      └── HAProxy :6033 ──► ProxySQL node-1  (leastconn, TCP health check)
+                       └──► ProxySQL node-2  (failover in ~6s if one crashes)
+
+  ProxySQL cluster (node-1 ←──sync──→ node-2)
+      auto read/write split + transparent query cache
+      :6032 / :6034  admin interfaces
+      :6080 / :6081  web UIs
+      cache:   products SELECTs → 30s TTL
+               COUNT(*) queries → 5s TTL
+      cluster: config changes on either node propagate automatically
 
   mysql-primary (server_id=1)
       │  GTID replication
       ├── mysql-replica1 (server_id=2, read-only)
       └── mysql-replica2 (server_id=3, read-only)
 
+  valkey (primary, allkeys-lru, 256MB)
+      └── valkey-replica (read-only replica)
+
   toolkit  ── pt-* tools + gh-ost + xtrabackup + mydumper
-  mysql-tools  ── mysql:8.0.23 client suite (mysqlbinlog, etc.)
+  mysql-tools  ── mysql:8.0 client suite (mysqlbinlog, etc.)
   mysql57      ── MySQL 5.7 source for migration lab (script 11)
   adminer      ── web UI :8080
 
   Monitoring
   mysqld-exporter-{primary,replica1,replica2} :9104–9106
+  redis-exporter                              :9121
       │  scrape every 15s
       ▼
   Prometheus :9090
@@ -38,7 +51,9 @@ Everything from the DBRE docs, hands-on. Docker-based, runs locally, no cloud ne
       ▼
   Grafana :3000  (admin / admin)
       ├── MySQL Overview       — time-series: QPS, lag, connections, buffer pool
-      └── MySQL Processlist    — live SQL: processlist, top queries, locks, transactions
+      ├── MySQL Processlist    — live SQL: processlist, top queries, locks, transactions
+      ├── ProxySQL             — connection pool, query routing, cache hit rate, latency
+      └── Valkey Cache         — hit rate, memory, evictions, replication
 ```
 
 ---
@@ -53,14 +68,19 @@ Everything from the DBRE docs, hands-on. Docker-based, runs locally, no cloud ne
 | 3311 | mysql-replica1 | Direct access |
 | 3312 | mysql-replica2 | Direct access |
 | 3315 | mysql57 | MySQL 5.7 migration source |
-| 6032 | ProxySQL admin | MySQL protocol — `mysql -P 6032 -uradmin` |
-| 6033 | ProxySQL proxy | App connection point |
-| 6080 | ProxySQL web UI | HTTPS, Digest auth — `stats / statspass` |
+| 6033 | HAProxy → ProxySQL cluster | App connection point — routes to node-1 or node-2 |
+| 6032 | ProxySQL node-1 admin | MySQL protocol — `mysql -P 6032 -uradmin` |
+| 6034 | ProxySQL node-2 admin | MySQL protocol — `mysql -P 6034 -uradmin` |
+| 6080 | ProxySQL node-1 web UI | HTTPS, Digest auth — `stats / statspass` |
+| 6081 | ProxySQL node-2 web UI | HTTPS, Digest auth — `stats / statspass` |
 | 8080 | Adminer | Web DB client |
 | 8404 | HAProxy stats | HTTP |
+| 6379 | HAProxy → Valkey writes | App cache write endpoint — never connect directly to Valkey |
+| 6380 | HAProxy → Valkey reads | App cache read endpoint — routes to valkey-replica |
 | 9090 | Prometheus | |
 | 3000 | Grafana | admin / admin |
 | 9104–9106 | mysqld_exporter | One per MySQL node |
+| 9121 | redis-exporter | Valkey metrics → Prometheus |
 
 ---
 
@@ -479,7 +499,8 @@ docker exec toolkit sh -c 'echo panic     | nc -U /tmp/gh-ost-lab.sock'
 ## 11. MySQL 5.7 → 8.0 Migration (zero downtime)
 
 ```bash
-docker compose up -d mysql57
+# mysql57 uses the 'migration' profile — not started by default
+docker compose --profile migration up -d mysql57
 ./scripts/11-mysql5-to-8-migration.sh
 ```
 
@@ -502,6 +523,125 @@ Key compatibility issues to check:
 - `caching_sha2_password` default — ProxySQL/HAProxy need `mysql_native_password`
 - `query_cache` removed — remove from `my.cnf`
 - `NO_ZERO_DATE`, `NO_ZERO_IN_DATE` stricter by default
+
+---
+
+## 12. Transparent Caching — Valkey + ProxySQL
+
+```bash
+./scripts/12-caching.sh
+```
+
+Two caching layers — neither requires app code changes:
+
+### Layer 1: ProxySQL built-in query cache
+
+ProxySQL intercepts matching SELECTs and serves results from its internal cache.
+MySQL is never touched on a cache hit.
+
+| Query pattern | TTL | Rationale |
+|--------------|-----|-----------|
+| `SELECT … FROM products` | 30s | Catalog rarely changes |
+| `SELECT COUNT(…)` | 5s | Dashboard aggregates tolerate slight lag |
+
+```sql
+-- Monitor cache performance via ProxySQL admin
+mysql -u admin -padminpass -h 127.0.0.1 -P 6032 \
+  -e "SELECT Variable_Name, Variable_Value
+      FROM stats_mysql_global
+      WHERE Variable_Name LIKE 'Query_Cache%';"
+
+-- Hit rate = Query_Cache_count_GET_OK / Query_Cache_count_GET
+```
+
+To add cache to more queries, update `mysql_query_rules` in `proxysql.cnf` and add `cache_ttl = <ms>`.
+Flush live cache without restart:
+```sql
+-- ProxySQL admin
+PROXYSQL FLUSH QUERY CACHE;
+```
+
+### Layer 2: Valkey via HAProxy
+
+App connects to HAProxy — never directly to Valkey. If Valkey topology changes, only `haproxy.cfg` changes.
+
+| HAProxy port | Routes to | Use for |
+|-------------|-----------|---------|
+| `:6379` | `valkey` primary | Writes, read-write ops |
+| `:6380` | `valkey-replica` | Read-heavy lookups |
+
+```bash
+# Write via HAProxy (app endpoint)
+docker run --rm --network dbre-lab_db-net valkey/valkey:8 \
+  valkey-cli -h haproxy -p 6379 SET "product:1" "cached" EX 30
+
+# Verify it replicated
+docker exec valkey-replica valkey-cli GET "product:1"
+
+# Direct Valkey CLI (debugging only — app should use HAProxy)
+docker exec valkey valkey-cli info all
+docker exec valkey valkey-cli monitor   # real-time command trace
+```
+
+**Common patterns:**
+
+```bash
+# Read-through: cache product catalog (30s TTL matches ProxySQL rule)
+docker exec valkey valkey-cli HSET product:1 sku SKU-001 name "Laptop Pro 15" price 1299.99
+docker exec valkey valkey-cli EXPIRE product:1 30
+
+# Session store
+docker exec valkey valkey-cli HSET sess:abc user_id 42 cart 3
+docker exec valkey valkey-cli EXPIRE sess:abc 1800
+
+# Rate limiting counter
+docker exec valkey valkey-cli INCR ratelimit:alice:2026041213
+docker exec valkey valkey-cli EXPIRE ratelimit:alice:2026041213 3600
+
+# Distributed lock (NX = only if not exists, PX = TTL ms)
+docker exec valkey valkey-cli SET lock:order:123 worker-1 NX PX 5000
+```
+
+**Eviction policy:** `allkeys-lru` — when 256MB is reached, least-recently-used keys are evicted automatically. Correct for a cache; use `noeviction` for a primary data store.
+
+**Dashboard:** `localhost:3000` → **Valkey Cache** — hit rate gauge, hits/misses time-series, memory usage, evictions, replica status, ProxySQL cache cheatsheet.
+
+**Metrics:** `localhost:9121/metrics` (redis-exporter → Prometheus)
+
+Key metrics:
+- `redis_keyspace_hits_total` / `redis_keyspace_misses_total` — hit rate
+- `redis_evicted_keys_total` — eviction pressure (increase maxmemory if high)
+- `redis_memory_used_bytes` — current memory usage
+- `redis_replication_lag` — replica lag
+
+---
+
+## 13. Cache Performance Benchmark
+
+```bash
+./scripts/13-cache-benchmark.sh
+```
+
+Compares four data-access paths for the same query (`SELECT FROM products`):
+
+| Path | Description | Expected latency |
+|------|-------------|-----------------|
+| A — Direct MySQL replica | Full SQL round-trip, no cache | 2–10 ms |
+| B — ProxySQL cold | Cache flushed, every query hits MySQL | 2–10 ms |
+| C — ProxySQL warm | Cache populated, ProxySQL serves from RAM | 0.1–1 ms |
+| D — Valkey HGET | Pure KV lookup, no SQL at all | 0.2–2 ms |
+
+Outputs per-path: count, avg ms, p50/p95/p99, QPS.  
+Then runs a **concurrent load test** with `WORKERS` parallel goroutines to measure throughput under contention.
+
+```bash
+# Tune load
+ITERS=500 WORKERS=16 LOAD_ITERS=100 ./scripts/13-cache-benchmark.sh
+```
+
+**Watch in Grafana** while the benchmark runs:
+- `Valkey Cache` dashboard → hit rate climbs from 0% → ~99% after warm-up
+- `MySQL Overview` → QPS on replicas drops once ProxySQL cache serves traffic
 
 ---
 

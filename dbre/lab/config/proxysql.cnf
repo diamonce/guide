@@ -7,7 +7,28 @@ admin_variables =
     mysql_ifaces       = "0.0.0.0:6032"
     web_enabled        = true
     web_port           = 6080
+
+    # ── Cluster sync ─────────────────────────────────────────────────────────
+    # radmin is already in admin_credentials; reused for inter-node gossip.
+    # Each node polls peers every 200 ms. Config changes on any node propagate
+    # automatically — change mysql_servers on node-1, node-2 picks it up.
+    cluster_username                             = "radmin"
+    cluster_password                             = "radminpass"
+    cluster_check_interval_ms                    = 200
+    cluster_check_status_frequency               = 100
+    cluster_mysql_query_rules_save_to_disk       = true
+    cluster_mysql_servers_save_to_disk           = true
+    cluster_mysql_users_save_to_disk             = true
+    cluster_proxysql_servers_save_to_disk        = true
 }
+
+# ProxySQL cluster peers — both nodes list each other.
+# A node ignores itself in this list; no special per-node config needed.
+proxysql_servers =
+(
+    { hostname = "proxysql",  port = 6032, weight = 1, comment = "node-1" },
+    { hostname = "proxysql2", port = 6032, weight = 1, comment = "node-2" }
+)
 
 mysql_variables =
 {
@@ -77,11 +98,21 @@ mysql_users =
     }
 )
 
-# Query rules — route SELECTs to replicas
+# Query rules — route SELECTs to replicas + transparent caching
+#
+# How ProxySQL query cache works:
+#   When a rule has cache_ttl set, ProxySQL hashes the query text and stores
+#   the result in its internal cache (memory). On the next identical query,
+#   ProxySQL returns the cached result without touching MySQL at all.
+#   The app sends normal SQL — zero code changes required.
+#
+# Cache TTL values (milliseconds):
+#   products catalog  — 30 000ms (30s): product names/prices rarely change
+#   aggregate counts  —  5 000ms  (5s): acceptable staleness for dashboards
+#
 mysql_query_rules =
 (
-    # ProxySQL 2.5 multiplexing probe — intercept before it reaches MySQL 8.0.
-    # MySQL rejects SELECT $$ with "Unknown column '$$'" which fills the error log.
+    # Rule 1 — ProxySQL 2.5 multiplexing probe (internal, must be first)
     {
         rule_id              = 1
         active               = 1
@@ -89,18 +120,40 @@ mysql_query_rules =
         multiplex            = 1
         apply                = 1
     },
+    # Rule 2 — SELECT FOR UPDATE always hits primary (locking read)
     {
         rule_id              = 2
         active               = 1
         match_pattern        = "^SELECT .* FOR UPDATE"
-        destination_hostgroup = 0    # SELECT FOR UPDATE must go to primary
+        destination_hostgroup = 0
         apply                = 1
     },
+    # Rule 3 — Cache product catalog reads (30s TTL)
+    # products and order_items are reference data; staleness is acceptable.
     {
-        rule_id              = 3
+        rule_id               = 3
+        active                = 1
+        match_pattern         = "^SELECT .* FROM products"
+        destination_hostgroup = 1
+        cache_ttl             = 30000
+        apply                 = 1
+    },
+    # Rule 4 — Cache aggregate/count queries (5s TTL)
+    # Dashboard queries like "how many orders today" tolerate slight lag.
+    {
+        rule_id               = 4
+        active                = 1
+        match_pattern         = "^SELECT COUNT"
+        destination_hostgroup = 1
+        cache_ttl             = 5000
+        apply                 = 1
+    },
+    # Rule 5 — All other SELECTs → replicas (no cache)
+    {
+        rule_id              = 5
         active               = 1
         match_pattern        = "^SELECT"
-        destination_hostgroup = 1    # all other SELECTs → replicas
+        destination_hostgroup = 1
         apply                = 1
     }
 )

@@ -1,0 +1,389 @@
+{
+  "id": null,
+  "uid": "proxysql",
+  "title": "ProxySQL",
+  "description": "Live operational view of ProxySQL — connection pool, query routing, query cache, top queries, command latency. Sourced directly from ProxySQL admin port 6032 (stats_* tables). Current-state only — no historical time-series.",
+  "tags": ["proxysql", "dbre", "lab"],
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "5s",
+  "time": {"from": "now-5m", "to": "now"},
+  "graphTooltip": 1,
+  "editable": true,
+  "panels": [
+
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "Client Connections",
+      "description": "Active frontend connections from apps to ProxySQL right now",
+      "gridPos": {"x": 0, "y": 0, "w": 4, "h": 4},
+      "datasource": {"type": "mysql", "uid": "proxysql-admin"},
+      "targets": [{
+        "rawSql": "SELECT Variable_Value+0 AS value FROM stats_mysql_global WHERE Variable_Name='Client_Connections_connected'",
+        "format": "table",
+        "refId": "A"
+      }],
+      "options": {
+        "reduceOptions": {"calcs": ["lastNotNull"], "fields": "/^value$/", "values": false},
+        "colorMode": "background",
+        "graphMode": "none",
+        "orientation": "auto"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {"mode": "absolute", "steps": [
+            {"color": "green",  "value": null},
+            {"color": "yellow", "value": 50},
+            {"color": "red",    "value": 100}
+          ]},
+          "color": {"mode": "thresholds"}
+        }
+      }
+    },
+
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "Active Transactions",
+      "description": "Transactions currently open across all backends. High value = potential lock contention.",
+      "gridPos": {"x": 4, "y": 0, "w": 4, "h": 4},
+      "datasource": {"type": "mysql", "uid": "proxysql-admin"},
+      "targets": [{
+        "rawSql": "SELECT Variable_Value+0 AS value FROM stats_mysql_global WHERE Variable_Name='Active_Transactions'",
+        "format": "table",
+        "refId": "A"
+      }],
+      "options": {
+        "reduceOptions": {"calcs": ["lastNotNull"], "fields": "/^value$/", "values": false},
+        "colorMode": "background",
+        "graphMode": "none",
+        "orientation": "auto"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {"mode": "absolute", "steps": [
+            {"color": "green",  "value": null},
+            {"color": "yellow", "value": 5},
+            {"color": "red",    "value": 20}
+          ]},
+          "color": {"mode": "thresholds"}
+        }
+      }
+    },
+
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "Total Questions",
+      "description": "Cumulative queries routed since ProxySQL started",
+      "gridPos": {"x": 8, "y": 0, "w": 4, "h": 4},
+      "datasource": {"type": "mysql", "uid": "proxysql-admin"},
+      "targets": [{
+        "rawSql": "SELECT Variable_Value+0 AS value FROM stats_mysql_global WHERE Variable_Name='Questions'",
+        "format": "table",
+        "refId": "A"
+      }],
+      "options": {
+        "reduceOptions": {"calcs": ["lastNotNull"], "fields": "/^value$/", "values": false},
+        "colorMode": "value",
+        "graphMode": "none",
+        "orientation": "auto"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {"mode": "absolute", "steps": [{"color": "blue", "value": null}]},
+          "color": {"mode": "thresholds"}
+        }
+      }
+    },
+
+    {
+      "id": 4,
+      "type": "gauge",
+      "title": "Query Cache Hit Rate",
+      "description": "GET_OK / GET. Only counting queries that match a cache_ttl rule. <80% = cache not effective for matched queries.",
+      "gridPos": {"x": 12, "y": 0, "w": 6, "h": 4},
+      "datasource": {"type": "mysql", "uid": "proxysql-admin"},
+      "targets": [{
+        "rawSql": "SELECT ROUND(100.0 * MAX(CASE WHEN Variable_Name='Query_Cache_count_GET_OK' THEN Variable_Value+0 END) / NULLIF(MAX(CASE WHEN Variable_Name='Query_Cache_count_GET' THEN Variable_Value+0 END), 0), 1) AS value FROM stats_mysql_global WHERE Variable_Name IN ('Query_Cache_count_GET','Query_Cache_count_GET_OK')",
+        "format": "table",
+        "refId": "A"
+      }],
+      "options": {
+        "reduceOptions": {"calcs": ["lastNotNull"], "fields": "/^value$/", "values": false},
+        "showThresholdLabels": false,
+        "showThresholdMarkers": true
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "max": 100,
+          "thresholds": {"mode": "absolute", "steps": [
+            {"color": "red",    "value": null},
+            {"color": "orange", "value": 50},
+            {"color": "yellow", "value": 80},
+            {"color": "green",  "value": 95}
+          ]},
+          "color": {"mode": "thresholds"}
+        }
+      }
+    },
+
+    {
+      "id": 5,
+      "type": "stat",
+      "title": "Cache Entries",
+      "description": "Distinct query results currently held in ProxySQL query cache",
+      "gridPos": {"x": 18, "y": 0, "w": 3, "h": 4},
+      "datasource": {"type": "mysql", "uid": "proxysql-admin"},
+      "targets": [{
+        "rawSql": "SELECT Variable_Value+0 AS value FROM stats_mysql_global WHERE Variable_Name='Query_Cache_Entries'",
+        "format": "table",
+        "refId": "A"
+      }],
+      "options": {
+        "reduceOptions": {"calcs": ["lastNotNull"], "fields": "/^value$/", "values": false},
+        "colorMode": "value",
+        "graphMode": "none"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {"mode": "absolute", "steps": [{"color": "blue", "value": null}]},
+          "color": {"mode": "thresholds"}
+        }
+      }
+    },
+
+    {
+      "id": 6,
+      "type": "stat",
+      "title": "Cache Memory",
+      "description": "RAM used by ProxySQL query cache",
+      "gridPos": {"x": 21, "y": 0, "w": 3, "h": 4},
+      "datasource": {"type": "mysql", "uid": "proxysql-admin"},
+      "targets": [{
+        "rawSql": "SELECT Variable_Value+0 AS value FROM stats_mysql_global WHERE Variable_Name='Query_Cache_Memory_bytes'",
+        "format": "table",
+        "refId": "A"
+      }],
+      "options": {
+        "reduceOptions": {"calcs": ["lastNotNull"], "fields": "/^value$/", "values": false},
+        "colorMode": "value",
+        "graphMode": "none"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes",
+          "thresholds": {"mode": "absolute", "steps": [{"color": "blue", "value": null}]},
+          "color": {"mode": "thresholds"}
+        }
+      }
+    },
+
+    {
+      "id": 7,
+      "type": "table",
+      "title": "Connection Pool — backends",
+      "description": "One row per backend server. ConnUsed = active, ConnFree = idle in pool. Latency = backend round-trip in ms. High ConnUsed with zero ConnFree = pool exhausted.",
+      "gridPos": {"x": 0, "y": 4, "w": 24, "h": 7},
+      "datasource": {"type": "mysql", "uid": "proxysql-admin"},
+      "targets": [{
+        "rawSql": "SELECT hostgroup AS HG, srv_host AS Host, srv_port AS Port, status AS Status, ConnUsed AS `Used`, ConnFree AS `Free`, ConnOK AS `OK`, ConnERR AS `Errors`, Queries, ROUND(Latency_us/1000.0, 2) AS `Latency ms`, ROUND(Bytes_data_sent/1048576.0, 2) AS `Sent MB`, ROUND(Bytes_data_recv/1048576.0, 2) AS `Recv MB` FROM stats_mysql_connection_pool ORDER BY hostgroup, srv_host",
+        "format": "table",
+        "refId": "A"
+      }],
+      "options": {
+        "showHeader": true,
+        "sortBy": [{"displayName": "HG", "desc": false}]
+      },
+      "fieldConfig": {
+        "defaults": {"custom": {"align": "auto", "displayMode": "auto"}},
+        "overrides": [
+          {
+            "matcher": {"id": "byName", "options": "Status"},
+            "properties": [{"id": "custom.displayMode", "value": "color-background"}, {
+              "id": "mappings",
+              "value": [{"type": "value", "options": {
+                "ONLINE":  {"color": "green",  "index": 0},
+                "SHUNNED": {"color": "red",    "index": 1},
+                "OFFLINE_SOFT": {"color": "orange", "index": 2},
+                "OFFLINE_HARD": {"color": "red",    "index": 3}
+              }}]
+            }]
+          },
+          {
+            "matcher": {"id": "byName", "options": "Errors"},
+            "properties": [{"id": "custom.displayMode", "value": "color-background"}, {
+              "id": "thresholds",
+              "value": {"mode": "absolute", "steps": [
+                {"color": "green", "value": null},
+                {"color": "red",   "value": 1}
+              ]}
+            }, {"id": "color", "value": {"mode": "thresholds"}}]
+          },
+          {
+            "matcher": {"id": "byName", "options": "Latency ms"},
+            "properties": [{"id": "custom.displayMode", "value": "color-background"}, {
+              "id": "thresholds",
+              "value": {"mode": "absolute", "steps": [
+                {"color": "green",  "value": null},
+                {"color": "yellow", "value": 5},
+                {"color": "red",    "value": 20}
+              ]}
+            }, {"id": "color", "value": {"mode": "thresholds"}}]
+          }
+        ]
+      }
+    },
+
+    {
+      "id": 8,
+      "type": "table",
+      "title": "Top Queries by Execution Count",
+      "description": "Queries ProxySQL has seen since startup, ordered by call count. cache_entries > 0 = result is currently in query cache. Avg ms = average latency including cache hits (cache hits are near-zero, so high avg means poor cache coverage).",
+      "gridPos": {"x": 0, "y": 11, "w": 24, "h": 9},
+      "datasource": {"type": "mysql", "uid": "proxysql-admin"},
+      "targets": [{
+        "rawSql": "SELECT hostgroup AS HG, CASE WHEN hostgroup=0 THEN 'write' WHEN hostgroup=1 THEN 'read' ELSE hostgroup END AS Route, count_star AS Count, ROUND(sum_time/NULLIF(count_star,0)/1000.0, 2) AS `Avg ms`, ROUND(min_time/1000.0, 2) AS `Min ms`, ROUND(max_time/1000.0, 2) AS `Max ms`, cache_entries AS Cached, SUBSTRING(digest_text, 1, 100) AS `Query (truncated)` FROM stats_mysql_query_digest ORDER BY count_star DESC LIMIT 25",
+        "format": "table",
+        "refId": "A"
+      }],
+      "options": {"showHeader": true},
+      "fieldConfig": {
+        "defaults": {"custom": {"align": "auto", "displayMode": "auto"}},
+        "overrides": [
+          {
+            "matcher": {"id": "byName", "options": "Avg ms"},
+            "properties": [{"id": "custom.displayMode", "value": "color-background"}, {
+              "id": "thresholds",
+              "value": {"mode": "absolute", "steps": [
+                {"color": "green",  "value": null},
+                {"color": "yellow", "value": 10},
+                {"color": "red",    "value": 100}
+              ]}
+            }, {"id": "color", "value": {"mode": "thresholds"}}]
+          },
+          {
+            "matcher": {"id": "byName", "options": "Cached"},
+            "properties": [{"id": "custom.displayMode", "value": "color-background"}, {
+              "id": "thresholds",
+              "value": {"mode": "absolute", "steps": [
+                {"color": "orange", "value": null},
+                {"color": "green",  "value": 1}
+              ]}
+            }, {"id": "color", "value": {"mode": "thresholds"}}]
+          },
+          {
+            "matcher": {"id": "byName", "options": "Route"},
+            "properties": [{"id": "custom.displayMode", "value": "color-background"}, {
+              "id": "mappings",
+              "value": [{"type": "value", "options": {
+                "write": {"color": "red",   "index": 0},
+                "read":  {"color": "blue",  "index": 1}
+              }}]
+            }]
+          }
+        ]
+      }
+    },
+
+    {
+      "id": 9,
+      "type": "table",
+      "title": "Command Latency Distribution",
+      "description": "Latency buckets per SQL command type since startup. Useful for spotting slow INSERT/UPDATE patterns or unexpected SELECT latency spikes.",
+      "gridPos": {"x": 0, "y": 20, "w": 24, "h": 7},
+      "datasource": {"type": "mysql", "uid": "proxysql-admin"},
+      "targets": [{
+        "rawSql": "SELECT Command, Total_cnt AS Count, ROUND(Total_Time_us/NULLIF(Total_cnt,0)/1000.0, 2) AS `Avg ms`, cnt_100us AS `<0.1ms`, cnt_500us AS `<0.5ms`, cnt_1ms AS `<1ms`, cnt_5ms AS `<5ms`, cnt_10ms AS `<10ms`, cnt_50ms AS `<50ms`, cnt_100ms AS `<100ms`, cnt_500ms AS `<500ms`, cnt_1s AS `<1s`, cnt_inf AS `>1s` FROM stats_mysql_commands_counters WHERE Total_cnt > 0 ORDER BY Total_cnt DESC",
+        "format": "table",
+        "refId": "A"
+      }],
+      "options": {"showHeader": true},
+      "fieldConfig": {
+        "defaults": {"custom": {"align": "auto", "displayMode": "auto"}},
+        "overrides": [
+          {
+            "matcher": {"id": "byName", "options": "Avg ms"},
+            "properties": [{"id": "custom.displayMode", "value": "color-background"}, {
+              "id": "thresholds",
+              "value": {"mode": "absolute", "steps": [
+                {"color": "green",  "value": null},
+                {"color": "yellow", "value": 10},
+                {"color": "red",    "value": 100}
+              ]}
+            }, {"id": "color", "value": {"mode": "thresholds"}}]
+          },
+          {
+            "matcher": {"id": "byName", "options": ">1s"},
+            "properties": [{"id": "custom.displayMode", "value": "color-background"}, {
+              "id": "thresholds",
+              "value": {"mode": "absolute", "steps": [
+                {"color": "green", "value": null},
+                {"color": "red",   "value": 1}
+              ]}
+            }, {"id": "color", "value": {"mode": "thresholds"}}]
+          }
+        ]
+      }
+    },
+
+    {
+      "id": 10,
+      "type": "table",
+      "title": "Query Cache — detailed counters",
+      "description": "All Query_Cache_* variables. GET = total lookups, GET_OK = hits (served from cache), SET = misses written to cache. Hit rate = GET_OK / GET.",
+      "gridPos": {"x": 0, "y": 27, "w": 12, "h": 7},
+      "datasource": {"type": "mysql", "uid": "proxysql-admin"},
+      "targets": [{
+        "rawSql": "SELECT Variable_Name AS Metric, Variable_Value+0 AS Value FROM stats_mysql_global WHERE Variable_Name LIKE 'Query_Cache%' ORDER BY Variable_Name",
+        "format": "table",
+        "refId": "A"
+      }],
+      "options": {"showHeader": true},
+      "fieldConfig": {
+        "defaults": {"custom": {"align": "auto", "displayMode": "auto"}}
+      }
+    },
+
+    {
+      "id": 11,
+      "type": "table",
+      "title": "Connection & Traffic Counters",
+      "description": "Cumulative counters since ProxySQL started. Aborted connections = clients disconnected unexpectedly.",
+      "gridPos": {"x": 12, "y": 27, "w": 12, "h": 7},
+      "datasource": {"type": "mysql", "uid": "proxysql-admin"},
+      "targets": [{
+        "rawSql": "SELECT Variable_Name AS Metric, Variable_Value+0 AS Value FROM stats_mysql_global WHERE Variable_Name IN ('Client_Connections_connected','Client_Connections_created','Client_Connections_aborted','Server_Connections_connected','Server_Connections_created','Server_Connections_aborted','Questions','Slow_queries','Active_Transactions','mysql_backend_buffers_bytes','mysql_frontend_buffers_bytes') ORDER BY Variable_Name",
+        "format": "table",
+        "refId": "A"
+      }],
+      "options": {"showHeader": true},
+      "fieldConfig": {
+        "defaults": {"custom": {"align": "auto", "displayMode": "auto"}}
+      }
+    },
+
+    {
+      "id": 12,
+      "type": "text",
+      "title": "Admin CLI reference",
+      "gridPos": {"x": 0, "y": 34, "w": 24, "h": 5},
+      "options": {
+        "mode": "markdown",
+        "content": "## ProxySQL admin CLI\n\n```bash\n# Connect to admin interface\ndocker exec -it proxysql mysql -u admin -padminpass -h 127.0.0.1 -P 6032\n\n# Flush query cache\nPROXYSQL FLUSH QUERY CACHE;\n\n# Change cache TTL live (no restart)\nUPDATE mysql_query_rules SET cache_ttl=60000 WHERE rule_id=3;\nLOAD MYSQL QUERY RULES TO RUNTIME;\n\n# SHUN a backend (drain, no new connections)\nUPDATE mysql_servers SET status='SHUNNED' WHERE hostname='mysql-replica1';\nLOAD MYSQL SERVERS TO RUNTIME;\n\n# Bring it back\nUPDATE mysql_servers SET status='ONLINE' WHERE hostname='mysql-replica1';\nLOAD MYSQL SERVERS TO RUNTIME;\nSAVE MYSQL SERVERS TO DISK;\n\n# Watch live query digest (reset counters first)\nSELECT * FROM stats_mysql_query_digest_reset;   -- resets counters, returns snapshot\n```"
+      }
+    }
+
+  ],
+
+  "templating": {"list": []},
+  "annotations": {"list": []},
+  "links": [
+    {"title": "MySQL Overview",    "url": "/d/mysql-overview",    "type": "link", "targetBlank": false},
+    {"title": "MySQL Processlist", "url": "/d/mysql-processlist", "type": "link", "targetBlank": false},
+    {"title": "Valkey Cache",      "url": "/d/valkey-cache",      "type": "link", "targetBlank": false}
+  ]
+}
