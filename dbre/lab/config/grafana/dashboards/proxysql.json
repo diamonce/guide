@@ -242,11 +242,11 @@
       "id": 8,
       "type": "table",
       "title": "Top Queries by Execution Count",
-      "description": "Queries ProxySQL has seen since startup, ordered by call count. cache_entries > 0 = result is currently in query cache. Avg ms = average latency including cache hits (cache hits are near-zero, so high avg means poor cache coverage).",
+      "description": "Queries ProxySQL has seen since startup, ordered by call count. Avg ms = average latency. Use Query Cache counters panel below to check cache hit rate.",
       "gridPos": {"x": 0, "y": 11, "w": 24, "h": 9},
       "datasource": {"type": "mysql", "uid": "proxysql-admin"},
       "targets": [{
-        "rawSql": "SELECT hostgroup AS HG, CASE WHEN hostgroup=0 THEN 'write' WHEN hostgroup=1 THEN 'read' ELSE hostgroup END AS Route, count_star AS Count, ROUND(sum_time/NULLIF(count_star,0)/1000.0, 2) AS `Avg ms`, ROUND(min_time/1000.0, 2) AS `Min ms`, ROUND(max_time/1000.0, 2) AS `Max ms`, cache_entries AS Cached, SUBSTRING(digest_text, 1, 100) AS `Query (truncated)` FROM stats_mysql_query_digest ORDER BY count_star DESC LIMIT 25",
+        "rawSql": "SELECT hostgroup AS HG, CASE WHEN hostgroup=0 THEN 'write' WHEN hostgroup=1 THEN 'read' ELSE hostgroup END AS Route, count_star AS Count, ROUND(sum_time/NULLIF(count_star,0)/1000.0, 2) AS `Avg ms`, ROUND(min_time/1000.0, 2) AS `Min ms`, ROUND(max_time/1000.0, 2) AS `Max ms`, SUBSTRING(digest_text, 1, 100) AS `Query (truncated)` FROM stats_mysql_query_digest ORDER BY count_star DESC LIMIT 25",
         "format": "table",
         "refId": "A"
       }],
@@ -262,16 +262,6 @@
                 {"color": "green",  "value": null},
                 {"color": "yellow", "value": 10},
                 {"color": "red",    "value": 100}
-              ]}
-            }, {"id": "color", "value": {"mode": "thresholds"}}]
-          },
-          {
-            "matcher": {"id": "byName", "options": "Cached"},
-            "properties": [{"id": "custom.displayMode", "value": "color-background"}, {
-              "id": "thresholds",
-              "value": {"mode": "absolute", "steps": [
-                {"color": "orange", "value": null},
-                {"color": "green",  "value": 1}
               ]}
             }, {"id": "color", "value": {"mode": "thresholds"}}]
           },
