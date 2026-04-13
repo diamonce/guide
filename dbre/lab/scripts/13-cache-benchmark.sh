@@ -30,6 +30,22 @@ SKIP_SEED=${SKIP_SEED:-0}    # set to 1 to skip data generation
 REPORT_DIR="/tmp/bench_$(date +%Y%m%d_%H%M%S)"
 REPORT_FILE="${REPORT_DIR}/report.txt"
 
+# MySQL 9.x removed mysql_native_password as a loadable plugin; ProxySQL requires it.
+# Detect a client binary that can connect to ProxySQL (ports 6032/6033).
+PROXYSQL_MYSQL="mysql"
+for _candidate in mysql \
+    /opt/homebrew/opt/mysql-client@8.3/bin/mysql \
+    /usr/local/opt/mysql-client@8.3/bin/mysql; do
+    if command -v "$_candidate" &>/dev/null 2>&1; then
+        if MYSQL_PWD=apppass "$_candidate" -h 127.0.0.1 -P 6033 -u app shopdb \
+               -sN -e "SELECT 1" &>/dev/null 2>&1; then
+            PROXYSQL_MYSQL="$_candidate"
+            break
+        fi
+    fi
+done
+export PROXYSQL_MYSQL
+
 mkdir -p "$REPORT_DIR"
 
 # Benchmark query — JOIN that scans order_items (20-100ms with large data)
@@ -86,7 +102,7 @@ worker_proxysql() {
     while [ "$(date +%s)" -lt "$end" ]; do
         local t0 t1
         t0=$(date +%s%N)
-        MYSQL_PWD=apppass mysql -h 127.0.0.1 -P 6033 -u app shopdb -sN \
+        MYSQL_PWD=apppass $PROXYSQL_MYSQL -h 127.0.0.1 -P 6033 -u app shopdb -sN \
             -e "$BENCH_QUERY" 2>/dev/null > /dev/null
         t1=$(date +%s%N)
         echo $(( (t1 - t0) / 1000000 )) >> "$outfile"
@@ -142,7 +158,7 @@ for svc in mysql-primary mysql-replica1 proxysql valkey redis-cli; do
     case "$svc" in
         mysql-*) docker exec "$svc" mysqladmin ping -u root -prootpass -s 2>/dev/null \
                      && echo "ok" || { echo "FAIL — start the cluster first"; exit 1; } ;;
-        proxysql) MYSQL_PWD=radminpass mysql -h 127.0.0.1 -P 6032 -uradmin \
+        proxysql) MYSQL_PWD=radminpass $PROXYSQL_MYSQL -h 127.0.0.1 -P 6032 -uradmin \
                      -e "SELECT 1" --silent 2>/dev/null | grep -q 1 && echo "ok" || { echo "FAIL"; exit 1; } ;;
         valkey) docker exec valkey valkey-cli ping 2>/dev/null | grep -q PONG && echo "ok" || { echo "FAIL"; exit 1; } ;;
         redis-cli) command -v redis-cli &>/dev/null && echo "ok" \
@@ -285,12 +301,12 @@ done
 echo "  Valkey keys total: $(redis-cli -h 127.0.0.1 -p 6379 DBSIZE 2>/dev/null)"
 
 # Reset ProxySQL stats baseline
-MYSQL_PWD=radminpass mysql -h 127.0.0.1 -P 6032 -uradmin \
+MYSQL_PWD=radminpass $PROXYSQL_MYSQL -h 127.0.0.1 -P 6032 -uradmin \
     -e "SELECT * FROM stats_mysql_query_digest_reset;" 2>/dev/null > /dev/null || true
 
 # Ensure ProxySQL cache rule covers the JOIN query (rule 3 matches ^SELECT .* FROM products)
 # Add rule 6 for the specific JOIN pattern with a longer TTL if rule 3 doesn't fire
-MYSQL_PWD=radminpass mysql -h 127.0.0.1 -P 6032 -uradmin -e "
+MYSQL_PWD=radminpass $PROXYSQL_MYSQL -h 127.0.0.1 -P 6032 -uradmin -e "
     DELETE FROM mysql_query_rules WHERE rule_id=6;
     INSERT INTO mysql_query_rules
         (rule_id, active, match_pattern, destination_hostgroup, cache_ttl, apply)
@@ -305,7 +321,7 @@ A_STATS=$(stats "${REPORT_DIR}/A_all.txt")
 
 # ── Path B: ProxySQL cold ──────────────────────────────────────────────────────
 header "Path B — ProxySQL COLD (cache flushed, every query hits MySQL, ${DURATION}s)"
-MYSQL_PWD=radminpass mysql -h 127.0.0.1 -P 6032 -uradmin \
+MYSQL_PWD=radminpass $PROXYSQL_MYSQL -h 127.0.0.1 -P 6032 -uradmin \
     -e "PROXYSQL FLUSH QUERY CACHE;" 2>/dev/null || true
 run_path "ProxySQL cold" worker_proxysql "${REPORT_DIR}/B"
 B_QPS=$(qps "${REPORT_DIR}/B_all.txt" "$DURATION")
@@ -315,7 +331,7 @@ B_STATS=$(stats "${REPORT_DIR}/B_all.txt")
 header "Path C — ProxySQL WARM (cache populated, served from RAM, ${DURATION}s)"
 # Pre-warm: send 3 queries to populate cache before workers start
 for _ in 1 2 3; do
-    MYSQL_PWD=apppass mysql -h 127.0.0.1 -P 6033 -u app shopdb -sN \
+    MYSQL_PWD=apppass $PROXYSQL_MYSQL -h 127.0.0.1 -P 6033 -u app shopdb -sN \
         -e "$BENCH_QUERY" 2>/dev/null > /dev/null
 done
 run_path "ProxySQL warm" worker_proxysql "${REPORT_DIR}/C"
@@ -332,7 +348,7 @@ D_STATS=$(stats "${REPORT_DIR}/D_all.txt")
 set +e
 
 # ProxySQL cache stats
-CACHE_RAW=$(MYSQL_PWD=radminpass mysql -h 127.0.0.1 -P 6032 -uradmin -sN \
+CACHE_RAW=$(MYSQL_PWD=radminpass $PROXYSQL_MYSQL -h 127.0.0.1 -P 6032 -uradmin -sN \
     -e "SELECT Variable_Name, Variable_Value FROM stats_mysql_global
         WHERE Variable_Name IN (
             'Query_Cache_count_GET','Query_Cache_count_GET_OK',

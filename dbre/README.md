@@ -99,6 +99,96 @@ The app must use a Redis client and implement cache-aside logic (check Valkey �
 - Use ProxySQL cache when you cannot change the app and the data changes slowly (config tables, product catalogs with infrequent updates).
 - Use Valkey when you control the app, need shared cache state across multiple servers, need explicit invalidation, or need to cache data beyond what fits in one ProxySQL process.
 
+**ProxySQL vs Valkey — not competitors, different layers:**
+
+ProxySQL shards MySQL query *traffic* — it routes queries to different MySQL backends based on rules (e.g. user ID range → shard 1 or shard 2). The data still lives in MySQL; ProxySQL is just the proxy in front of it.
+
+Valkey Cluster shards the *cache itself* — keys are distributed across multiple Valkey nodes via consistent hashing. The cache scales horizontally independent of MySQL.
+
+ProxySQL query cache does **not** shard — each node caches independently, so running two ProxySQL nodes gives you two separate caches, not one shared cache.
+
+| | ProxySQL query cache | Valkey |
+|--|---------------------|--------|
+| What it caches | SQL result sets, transparently | Whatever the app puts in |
+| Cache scales horizontally | No — each node independent | Yes — Valkey Cluster |
+| Sharding capability | Routes to multiple MySQL backends | Distributes keys across cache nodes |
+| App changes needed | None | Redis client + cache-aside logic |
+
+A production stack typically uses **both**: ProxySQL in front of MySQL for connection pooling, read/write split, and backend routing — Valkey as the shared application cache layer. They sit at different layers and complement each other.
+
+### Cache invalidation
+
+The hardest part of caching. Script 15 demonstrates all three patterns:
+
+| Strategy | Stale window | Notes |
+|----------|-------------|-------|
+| TTL-only | Up to TTL duration | Zero app work; accept staleness |
+| ProxySQL `FLUSH QUERY CACHE` | Zero (after flush) | Evicts **all** keys, not per-key |
+| Valkey `DEL key` on write | Zero | Per-key; requires app code |
+| Write-through | Zero | DB + cache updated atomically on every write |
+
+**ProxySQL limitation:** no per-key invalidation. `FLUSH QUERY CACHE` evicts everything. Use ProxySQL cache only for data that changes rarely (product catalogs, config) where a full flush is acceptable.
+
+### Cache stampede
+
+When a hot key expires under load, every concurrent request misses the cache simultaneously and hits the database — the thundering herd problem.
+
+**Prevention:** jitter all TTLs.
+```bash
+# Bad  — all keys expire at exactly the same time
+redis-cli SET key value EX 30
+
+# Good — keys expire over a 30-40s window, load spreads naturally
+redis-cli SET key value EX $((30 + RANDOM % 10))
+```
+
+Other strategies: lock-based refresh (one process refreshes, others wait), background refresh (watch TTL, refresh before zero), probabilistic early expiration (PER algorithm). Script 15 demonstrates all of them.
+
+### Benchmark results
+
+Measured in the lab: `products LEFT JOIN order_items GROUP BY product` aggregate query, 506 products, 200k order_items, 60s per path, 4 concurrent workers.
+
+```
+Path                         QPS      avg ms   p50    p95    p99
+────────────────────────────────────────────────────────────────
+A: Direct MySQL replica        5.5      707ms    684    863   1151
+B: ProxySQL cold (miss)       85.3       39ms     33     63     98
+C: ProxySQL warm (hit)        83.6       40ms     36     59     82
+D: Valkey GET                168.3       15ms     13     29     46
+
+ProxySQL warm :  17.7x faster than direct MySQL  (cache hit rate 99.7%)
+Valkey GET    :  46.7x faster than direct MySQL  (cache hit rate 98.7%)
+```
+
+B (cold) ≈ C (warm) because the 30s TTL means the first 4 miss queries (~700ms each) populate the cache within the first second. For the remaining 59 seconds all queries are cache hits — 4 misses out of 5,121 total don't move the average.
+
+**With connection pooling (persistent connections) — script 15:**
+
+Script 13 opens a new TCP connection per query — the ~35ms MySQL handshake dominates everything. Script 15 uses `mysqlslap` and `redis-benchmark` to show the real latency without that noise:
+
+```
+With persistent connections (mysqlslap / redis-benchmark):
+  Direct MySQL     ~50–100ms   (full JOIN scan, no cache)
+  ProxySQL warm    ~1–5ms      (cache hit, no handshake overhead)
+  Valkey GET       ~1–2ms      (hash lookup)
+```
+
+In production always use a connection pool — the handshake is paid once at startup, not per query.
+
+**Why is ProxySQL warm (39ms) slower than Valkey GET (15ms) if both serve from RAM?**
+
+Protocol overhead — both return the same data from memory in ~1ms, but the connection handshake differs:
+
+| | ProxySQL (MySQL protocol) | Valkey (Redis RESP) |
+|--|--------------------------|---------------------|
+| Round-trips to first byte | ~5–6 | ~2–3 |
+| Handshake | server greeting → auth challenge → auth OK | none |
+| Connection cost on macOS Docker (~5ms/RTT) | ~30ms | ~10ms |
+| Query execution (from RAM) | ~1ms | ~1ms |
+| **Total per new connection** | **~31ms** | **~11ms** |
+
+The gap is entirely the MySQL auth handshake, not cache performance. In production apps use connection pools — the handshake is paid once at startup and amortized across thousands of queries, bringing ProxySQL warm latency to ~1–2ms per query. With persistent connections ProxySQL would be faster than Valkey (one fewer HAProxy hop).
+
 ### Lab scripts
 
 | Script | Topic |
@@ -117,6 +207,7 @@ The app must use a Redis client and implement cache-aside logic (check Valkey �
 | `12-caching.sh` | ProxySQL built-in query cache (transparent) + Valkey cache-aside pattern (requires Redis client) |
 | `13-cache-benchmark.sh` | Performance comparison: Direct MySQL vs ProxySQL cache (cold/warm) vs Valkey GET — generates its own dataset; runs in ~6min by default |
 | `14-load-simulation.sh` | Realistic load simulation: large dataset + background RPS to show cache value under pressure |
+| `15-cache-best-practices.sh` | Three lessons: connection pooling (real latency without handshake noise), cache invalidation (stale reads, write-through), cache stampede (thundering herd + jittered TTL prevention) |
 
 **[→ Lab runbook](lab/runbook.md)** — full setup, commands, one-liners, tear down.
 

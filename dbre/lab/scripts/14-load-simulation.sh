@@ -38,6 +38,22 @@ SKIP_SEED=${SKIP_SEED:-0}
 REPORT_DIR="/tmp/loadsim_$(date +%Y%m%d_%H%M%S)"
 mkdir -p "$REPORT_DIR"
 
+# MySQL 9.x removed mysql_native_password as a loadable plugin; ProxySQL requires it.
+# Detect a client binary that can connect to ProxySQL (ports 6032/6033).
+PROXYSQL_MYSQL="mysql"
+for _candidate in mysql \
+    /opt/homebrew/opt/mysql-client@8.3/bin/mysql \
+    /usr/local/opt/mysql-client@8.3/bin/mysql; do
+    if command -v "$_candidate" &>/dev/null 2>&1; then
+        if MYSQL_PWD=apppass "$_candidate" -h 127.0.0.1 -P 6033 -u app shopdb \
+               -sN -e "SELECT 1" &>/dev/null 2>&1; then
+            PROXYSQL_MYSQL="$_candidate"
+            break
+        fi
+    fi
+done
+export PROXYSQL_MYSQL
+
 M8="docker exec -i mysql-primary"
 MYSQL_PRIMARY="docker exec mysql-primary mysql -u root -prootpass shopdb"
 MYSQL_REPLICA="docker exec mysql-replica1 mysql -u root -prootpass shopdb"
@@ -224,7 +240,7 @@ MYSQL_PWD=radminpass mysql -h127.0.0.1 -P6032 -uradmin -e "
     LOAD MYSQL QUERY RULES TO RUNTIME;" 2>/dev/null || true
 
 # Pre-warm ProxySQL cache
-MYSQL_PWD=apppass mysql -h 127.0.0.1 -P 6033 -u app shopdb -sN \
+MYSQL_PWD=apppass $PROXYSQL_MYSQL -h 127.0.0.1 -P 6033 -u app shopdb -sN \
     -e "$BENCH_QUERY" 2>/dev/null > /dev/null
 
 # Seed Valkey with pre-computed result
@@ -267,7 +283,7 @@ bench_proxysql_warm() {
     while [ "$(date +%s)" -lt "$end" ]; do
         local t0 t1
         t0=$(date +%s%N)
-        MYSQL_PWD=apppass mysql -h 127.0.0.1 -P 6033 -u app shopdb -sN \
+        MYSQL_PWD=apppass $PROXYSQL_MYSQL -h 127.0.0.1 -P 6033 -u app shopdb -sN \
             -e "$BENCH_QUERY" 2>/dev/null > /dev/null
         t1=$(date +%s%N)
         echo $(( (t1 - t0) / 1000000 )) >> "$outfile"
