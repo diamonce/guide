@@ -20,6 +20,8 @@ DBRE applies SRE principles to databases. Databases are the most critical and le
 | [Backup & Recovery](backup-recovery.md) | mysqldump, XtraBackup, mydumper, PITR with GTIDs, zero-downtime table swap |
 | [Observability](observability.md) | Prometheus + mysqld_exporter, Grafana dashboards, alert hierarchy, replication lag |
 | [HA & Failover](ha-failover.md) | HAProxy, ProxySQL routing, replica promotion, failover runbooks |
+| [ProxySQL Cheat Sheet](proxysql-cheatsheet.md) | Admin commands, query rules, cache flush, connection pool, cluster, save/load reference |
+| [HAProxy Cheat Sheet](haproxy-cheatsheet.md) | Runtime API, drain/patch/restore ProxySQL node with zero downtime, weight shifting, config reload |
 | [Load Testing & VM Optimization](load-testing.md) | sysbench, mysqlslap, InnoDB tuning, OS settings, GCP VM sizing |
 | [Scaling Databases](scaling.md) | Read replicas, ProxySQL connection pooling, sharding |
 | [**Lab**](lab/runbook.md) | **Hands-on Docker lab — everything below in a running cluster** |

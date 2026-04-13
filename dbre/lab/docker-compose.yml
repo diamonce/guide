@@ -39,6 +39,7 @@ volumes:
   valkey-data:
   valkey-replica-data:
   proxysql2-data:
+  haproxy-run:
 
 services:
 
@@ -244,6 +245,7 @@ services:
       - "8404:8404"   # HAProxy stats UI
     volumes:
       - ./config/haproxy.cfg:/usr/local/etc/haproxy/haproxy.cfg:ro
+      - haproxy-run:/var/run/haproxy    # stats socket lives here
     networks:
       - db-net
     depends_on:
